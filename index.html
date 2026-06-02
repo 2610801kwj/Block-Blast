@@ -42,6 +42,7 @@
         const scoreDisplay = document.getElementById('score');
         const msgDisplay = document.getElementById('msg');
 
+        // 기본 규격 설정
         const GRID_SIZE = 8;        
         const CELL_SIZE = 45;        
         const BOARD_OFFSET_X = 20;   
@@ -50,8 +51,10 @@
         let score = 0;
         let board = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
         
+        // 블록 색상 정보 (1번~6번)
         const COLORS = [null, '#ff3366', '#33ccff', '#33ff99', '#ffcc33', '#b833ff', '#ff9933'];
 
+        // 무작위로 나올 7가지 블록 모양 정의
         const SHAPES = [
             [[1]], 
             [[1, 1]], 
@@ -62,51 +65,6 @@
             [[1, 1, 0], [0, 1, 1]]  
         ];
 
+        // 아래쪽 인벤토리 3칸 정보 구역
         let inventory = [null, null, null];
-        const INV_SLOTS_X = [50, 170, 290];
-        const INV_SLOT_Y = 460;
-        const INV_CELL_SIZE = 25; 
-
-        let dragIdx = -1;
-        let isDragging = false;
-        let dragX = 0;
-        let dragY = 0;
-        let offsetX = 0; 
-        let offsetY = 0;
-
-        function init() {
-            board = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
-            score = 0;
-            updateScore();
-            fillInventory();
-            
-            // [버그 수정] 매 프레임마다 화면을 끊임없이 다시 그리는 무한 루프 가동
-            gameLoop();
-        }
-
-        function fillInventory() {
-            for (let i = 0; i < 3; i++) {
-                if (inventory[i] === null) {
-                    const randomShapeIdx = Math.floor(Math.random() * SHAPES.length);
-                    const colorIdx = Math.floor(Math.random() * (COLORS.length - 1)) + 1;
-                    inventory[i] = {
-                        shape: SHAPES[randomShapeIdx],
-                        colorIdx: colorIdx
-                    };
-                }
-            }
-            checkGameOver();
-        }
-
-        function updateScore() {
-            scoreDisplay.innerText = `SCORE: ${score}`;
-        }
-
-        // [버그 수정] 브라우저의 재생 빈도(60Hz 등)에 맞춰 계속 draw를 호출하는 엔진 루프
-        function gameLoop() {
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas
+        const INV_SLOTS_X =
