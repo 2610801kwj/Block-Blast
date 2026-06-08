@@ -2,16 +2,16 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>블록 블라스터 (격자판 + 블록 정상 출력)</title>
+    <title>블록 블라스터 (격자 및 블록 출력 완벽 수정본)</title>
     <style>
         body {
-            background: #121216; color: #fff; font-family: 'Malgun Gothic', sans-serif;
+            background: #141419; color: #fff; font-family: 'Malgun Gothic', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none;
         }
-        h1 { margin: 0 0 10px 0; color: #4caf50; text-shadow: 0 0 10px rgba(76,175,80,0.3); }
-        .game-container { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-        canvas { background: #1e1e24; border: 4px solid #333; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
+        h1 { margin: 0 0 10px 0; color: #ffeb3b; text-shadow: 0 0 10px rgba(255,235,59,0.3); }
+        .game-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        canvas { background: #1e1e24; border: 4px solid #444; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .info { color: #aaa; font-size: 0.9rem; text-align: center; }
     </style>
 </head>
@@ -27,49 +27,39 @@
         const canvas = document.getElementById('blockCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 설정 데이터
-        const COLS = 8;        // 가로 8칸
-        const ROWS = 8;        // 세로 8칸
-        const BLOCK_SIZE = 45; // 한 칸의 크기 (픽셀)
-        const BOARD_X = 20;    // 판의 시작 X 좌표
-        const BOARD_Y = 20;    // 판의 시작 Y 좌표
+        // 게임 판 설정
+        const COLS = 8;
+        const ROWS = 8;
+        const BLOCK_SIZE = 45; // 한 칸의 크기
+        const BOARD_X = 20;    // 전체 판 시작 X
+        const BOARD_Y = 20;    // 전체 판 시작 Y
 
-        // 1. 게임 판(그리드 상태) 초기화 (0은 빈칸, 색상 코드가 들어가면 채워진 칸)
+        // 게임 보드 판 상태 (0은 빈칸, 색상이 있으면 채워진 칸)
         let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-        // 테스트용으로 판에 블록 몇 개 미리 채워두기 (정상 출력 확인용)
+        // [확인용 데이터] 정상 작동하는지 보려고 미리 판에 블록 2개 채워둠
         board[7][0] = '#ff5722';
         board[7][1] = '#ff5722';
-        board[6][1] = '#ff5722';
 
-        // 2. 하단에 등장할 드래그용 블록 데이터 (정상 출력을 위해 구조 명확히 세팅)
-        // 블록 모양 배열과 화면상 그려질 실시간 x, y 좌표
+        // 하단 대기 블록 데이터 세팅 (인식 오류를 막기 위해 구조 단순화)
         let standbyBlocks = [
             {
-                shape: [
-                    [1, 1],
-                    [1, 1]
-                ],
+                shape: [[1, 1], [1, 1]], // 2x2 네모 블록
                 color: '#00bcd4',
-                x: 40, y: 420, originalX: 40, originalY: 420,
-                w: 2 * BLOCK_SIZE, h: 2 * BLOCK_SIZE
+                x: 40, y: 430, originalX: 40, originalY: 430,
+                cols: 2, rows: 2
             },
             {
-                shape: [
-                    [1, 1, 1]
-                ],
+                shape: [[1, 1, 1]],      // 1x3 가로 막대 블록
                 color: '#e91e63',
-                x: 180, y: 440, originalX: 180, originalY: 440,
-                w: 3 * BLOCK_SIZE, h: 1 * BLOCK_SIZE
+                x: 160, y: 450, originalX: 160, originalY: 450,
+                cols: 3, rows: 1
             },
             {
-                shape: [
-                    [1, 0],
-                    [1, 1]
-                ],
+                shape: [[1, 0], [1, 1]], // ㄴ자 블록
                 color: '#ffeb3b',
-                x: 310, y: 420, originalX: 310, originalY: 420,
-                w: 2 * BLOCK_SIZE, h: 2 * BLOCK_SIZE
+                x: 310, y: 430, originalX: 310, originalY: 430,
+                cols: 2, rows: 2
             }
         ];
 
@@ -77,47 +67,114 @@
         let offsetX = 0;
         let offsetY = 0;
 
-        // --- 그리기 함수 (렌더러) ---
+        // 메인 그리기 함수
         function draw() {
+            // 캔버스 전체 초기화
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // [해결책] 놓는 판 배경 및 선명한 격자 필터 그리기
+            // 1. 메인 판 배경 채우기
+            ctx.fillStyle = '#25252e';
+            ctx.fillRect(BOARD_X, BOARD_Y, COLS * BLOCK_SIZE, ROWS * BLOCK_SIZE);
+
+            // 2. 놓는 판 격자선(Grid) 선명하게 그리기
+            ctx.strokeStyle = '#141419';
+            ctx.lineWidth = 2;
+
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
                     let x = BOARD_X + c * BLOCK_SIZE;
                     let y = BOARD_Y + r * BLOCK_SIZE;
 
-                    // 기본 칸 배경색 (어두운 회색)
-                    ctx.fillStyle = '#2d2d3a';
-                    ctx.fillRect(x, y, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
-
-                    // 격자 테두리 선 선명하게 그리기
-                    ctx.strokeStyle = '#141419';
-                    ctx.lineWidth = 2;
+                    // 격자 테두리 선 그리기
                     ctx.strokeRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
 
-                    // 판 위에 이미 안착된 블록이 있다면 그리기
+                    // 이미 놓인 블록이 있으면 색상 채우기
                     if (board[r][c] !== 0) {
                         ctx.fillStyle = board[r][c];
-                        // 입체감을 위해 라운드 처리나 약간 축소해서 채우기
-                        ctx.fillRect(x + 1, y + 1, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
+                        ctx.fillRect(x + 2, y + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4);
                     }
                 }
             }
 
-            // 하단 대기실 가이드선
-            ctx.strokeStyle = '#333';
+            // 하단 대기실 가이드 점선 구별
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(0, 390);
-            ctx.lineTo(canvas.width, 390);
+            ctx.moveTo(0, 400);
+            ctx.lineTo(canvas.width, 400);
             ctx.stroke();
 
-            // [해결책] 드래그 가능한 하단 블록들 렌더링 (형태가 확실히 나타나도록 2중 루프 처리)
+            // 3. 하단 대기 블록 그리기 (오류가 없도록 기본 루프로 확실하게 드로잉)
             standbyBlocks.forEach(block => {
-                for (let r = 0; r < block.shape.length; r++) {
-                    for (let c = 0; c < block.shape[r].length; c++) {
+                ctx.fillStyle = block.color;
+                const displaySize = BLOCK_SIZE * 0.7; // 하단에선 70% 크기로 작게 보이게 설정
+
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
                         if (block.shape[r][c] === 1) {
-                            ctx.fillStyle = block.color;
-                            let bx = block.x + c * (BLOCK_SIZE * 0.7); // 아래 대기창에선 0.7배 작게 표시
-                            let by = block.y + r * (BLOCK_SIZE * 0.7);
-                            ctx.fillRect(bx, by, (
+                            let bx = block.x + c * displaySize;
+                            let by = block.y + r * displaySize;
+                            ctx.fillRect(bx, by, displaySize - 2, displaySize - 2);
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- 마우스 드래그 이벤트 인터랙션 처리 ---
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // 마우스 클릭 위치가 어떤 블록 안인지 판정
+            for (let i = 0; i < standbyBlocks.length; i++) {
+                let b = standbyBlocks[i];
+                let bw = b.cols * (BLOCK_SIZE * 0.7);
+                let bh = b.rows * (BLOCK_SIZE * 0.7);
+
+                if (mx >= b.x && mx <= b.x + bw && my >= b.y && my <= b.y + bh) {
+                    draggedBlock = b;
+                    offsetX = mx - b.x;
+                    offsetY = my - b.y;
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!draggedBlock) return;
+            const rect = canvas.getBoundingClientRect();
+            draggedBlock.x = (e.clientX - rect.left) - offsetX;
+            draggedBlock.y = (e.clientY - rect.top) - offsetY;
+            draw(); // 이동할 때마다 화면 강제 갱신
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (!draggedBlock) return;
+
+            // 격자 어디 위에 놓았는지 좌표 환산
+            let targetCol = Math.round((draggedBlock.x - BOARD_X) / BLOCK_SIZE);
+            let targetRow = Math.round((draggedBlock.y - BOARD_Y) / BLOCK_SIZE);
+
+            let canPlace = true;
+
+            // 판 범위를 안 벗어났는지 검사
+            if (targetRow >= 0 && targetRow + draggedBlock.rows <= ROWS && targetCol >= 0 && targetCol + draggedBlock.cols <= COLS) {
+                // 겹치는 블록이 없는지 검사
+                for (let r = 0; r < draggedBlock.rows; r++) {
+                    for (let c = 0; c < draggedBlock.cols; c++) {
+                        if (draggedBlock.shape[r][c] === 1) {
+                            if (board[targetRow + r][targetCol + c] !== 0) {
+                                canPlace = false;
+                            }
+                        }
+                    }
+                }
+            } else {
+                canPlace = false;
+            }
+
+            if (canPlace) {
+                // 블록을 판에 안착
+                for (let r = 0; r < draggedBlock.rows
