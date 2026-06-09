@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 (태블릿 터치 지원)</title>
+    <title>블록 블라스터 (실시간 위치 가이드 잔상 추가)</title>
     <style>
         body {
             background: #141419; color: #fff; font-family: 'Malgun Gothic', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none;
-            touch-action: none; /* 터치 시 화면이 흔들리거나 스크롤되는 현상 방지 */
+            touch-action: none;
         }
         h1 { margin: 0 0 15px 0; color: #ffeb3b; text-shadow: 0 0 10px rgba(255,235,59,0.3); font-size: 1.8rem; }
         
-        /* 8x8 메인 게임판 */
         #board {
             display: grid;
             grid-template-columns: repeat(8, 42px);
@@ -35,13 +34,11 @@
             width: 350px; height: 1px; background: #333; margin: 20px 0;
         }
 
-        /* 하단 블록 대기소 */
         #rack {
             display: flex; gap: 25px; justify-content: center; align-items: center;
             width: 350px; height: 90px; position: relative;
         }
         
-        /* 터치 드래그용 블록 컨테이너 */
         .block-container {
             display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10;
         }
@@ -55,12 +52,10 @@
     <h1>🧱 BLOCK BLAST</h1>
     
     <div id="board"></div>
-
     <div class="divider"></div>
-
     <div id="rack"></div>
 
-    <div class="info">📱 태블릿/폰: 블록을 터치해서 판 위로 끌고 가세요!<br>💻 PC: 마우스로 드래그 앤 드롭 하세요!</div>
+    <div class="info">💡 블록을 격자판 위로 가져가면 <b>놓일 자리가 연한 색 잔상</b>으로 표시됩니다!</div>
 
     <script>
         const boardEl = document.getElementById('board');
@@ -69,7 +64,7 @@
         const ROWS = 8, COLS = 8;
         const boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-        // 1. 8x8 격자판 생성
+        // 8x8 격자판 생성
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
@@ -80,21 +75,18 @@
             }
         }
 
-        // 테스트용 선행 타일 배치 함수
         function placeFixedTile(r, c, color) {
             boardState[r][c] = color;
             const targetCell = boardEl.children[r * COLS + c];
             targetCell.style.backgroundColor = color;
         }
 
-        // 블록 모양 목록
         const blockTemplates = [
             { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 },
             { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 },
             { shape: [[1, 0], [1, 1]], color: '#ffeb3b', rows: 2, cols: 2 }
         ];
 
-        // 2. 대기소에 블록 렌더링
         function renderRack() {
             rackEl.innerHTML = '';
             blockTemplates.forEach((tmpl, index) => {
@@ -117,34 +109,75 @@
                     }
                 }
 
-                // [핵심] 마우스 대용 터치 이벤트 리스너 등록
                 box.addEventListener('touchstart', handleTouchStart, { passive: false });
                 box.addEventListener('touchmove', handleTouchMove, { passive: false });
                 box.addEventListener('touchend', handleTouchEnd, { passive: false });
-                
-                // PC 마우스 호환용
                 box.addEventListener('mousedown', handleMouseDown);
 
                 rackEl.appendChild(box);
             });
         }
 
-        // --- 터치 제어 로직 ---
+        // --- 실시간 잔상(하이라이트) 표시 시스템 ---
+        function clearPreview() {
+            // 보드판의 색상 중 기존에 박힌 블록이 아닌 임시 잔상(#25252e가 아니고 실제 세팅 안된 칸)을 초기화
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[r * COLS + c];
+                    if (boardState[r][c] === 0) {
+                        cell.style.backgroundColor = '#25252e';
+                        cell.style.opacity = '1';
+                    }
+                }
+            }
+        }
+
+        function updatePreview(target, block) {
+            clearPreview(); // 일단 이전 프레임 잔상 삭제
+            if (!target || !target.classList.contains('cell')) return;
+
+            const startRow = parseInt(target.dataset.row);
+            const startCol = parseInt(target.dataset.col);
+
+            // 놓을 수 있는지 검사
+            let canPlace = true;
+            if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
+                        if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
+                            canPlace = false;
+                        }
+                    }
+                }
+            } else {
+                canPlace = false;
+            }
+
+            // 놓을 수 있는 자리에만 연한 색상(투명도 0.35) 가이드 표시
+            if (canPlace) {
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
+                        if (block.shape[r][c] === 1) {
+                            const cell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
+                            cell.style.backgroundColor = block.color;
+                            cell.style.opacity = '0.35'; // [보정] 연한 색상으로 인식되게 반투명 처리
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 터치 및 마우스 이동 인터랙션 처리 ---
         let activeBlock = null;
-        let startX = 0, startY = 0;
+        const TOUCH_OFFSET_Y = -50;
 
         function handleTouchStart(e) {
-            e.preventDefault(); // 스크롤 등 기본 동작 차단
+            e.preventDefault();
             activeBlock = this;
             const touch = e.touches[0];
-            
-            // 현재 블록의 중심점을 기준으로 잡기 위해 위치 기록
-            const rect = activeBlock.getBoundingClientRect();
-            activeBlock.dataset.offsetX = touch.clientX - rect.left;
-            activeBlock.dataset.offsetY = touch.clientY - rect.top;
-            
             activeBlock.style.position = 'fixed';
             activeBlock.style.zIndex = '1000';
+            activeBlock.style.transform = 'scale(1.1)';
             moveBlock(touch.clientX, touch.clientY);
         }
 
@@ -153,48 +186,52 @@
             e.preventDefault();
             const touch = e.touches[0];
             moveBlock(touch.clientX, touch.clientY);
+
+            // 이동할 때 실시간으로 아래에 있는 격자 칸을 감지해서 잔상 업데이트
+            const target = document.elementFromPoint(touch.clientX, touch.clientY + TOUCH_OFFSET_Y);
+            const block = blockTemplates[activeBlock.dataset.index];
+            updatePreview(target, block);
         }
 
         function handleTouchEnd(e) {
             if (!activeBlock) return;
-            
-            // 손가락을 뗀 마지막 위치의 좌표 구하기
             const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY + TOUCH_OFFSET_Y);
             
-            // 해당 좌표 밑에 있는 'cell' 클래스를 가진 칸 찾기
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
-            
+            clearPreview(); // 드롭이 완료되면 잔상 레이어 클리어
+            activeBlock.style.transform = 'scale(1.0)';
             processPlacement(target);
         }
 
         function moveBlock(clientX, clientY) {
-            const ox = parseFloat(activeBlock.dataset.offsetX);
-            const oy = parseFloat(activeBlock.dataset.offsetY);
-            activeBlock.style.left = `${clientX - ox}px`;
-            activeBlock.style.top = `${clientY - oy}px`;
+            const rect = activeBlock.getBoundingClientRect();
+            activeBlock.style.left = `${clientX - rect.width / 2}px`;
+            activeBlock.style.top = `${clientY - rect.height / 2 + TOUCH_OFFSET_Y}px`;
         }
 
-        // --- PC 마우스 제어 로직 (태블릿 겸용 지원) ---
+        // --- PC 마우스 드래그 & 잔상 처리 ---
         let mouseDragBlock = null;
         function handleMouseDown(e) {
             mouseDragBlock = this;
-            const rect = mouseDragBlock.getBoundingClientRect();
-            mouseDragBlock.dataset.offsetX = e.clientX - rect.left;
-            mouseDragBlock.dataset.offsetY = e.clientY - rect.top;
             mouseDragBlock.style.position = 'fixed';
             mouseDragBlock.style.zIndex = '1000';
             
             const moveHandler = (ev) => {
-                const ox = parseFloat(mouseDragBlock.dataset.offsetX);
-                const oy = parseFloat(mouseDragBlock.dataset.offsetY);
-                mouseDragBlock.style.left = `${ev.clientX - ox}px`;
-                mouseDragBlock.style.top = `${ev.clientY - oy}px`;
+                const rect = mouseDragBlock.getBoundingClientRect();
+                mouseDragBlock.style.left = `${ev.clientX - rect.width/2}px`;
+                mouseDragBlock.style.top = `${ev.clientY - rect.height/2}px`;
+
+                const target = document.elementFromPoint(ev.clientX, ev.clientY);
+                const block = blockTemplates[mouseDragBlock.dataset.index];
+                updatePreview(target, block);
             };
 
             const upHandler = (ev) => {
                 window.removeEventListener('mousemove', moveHandler);
                 window.removeEventListener('mouseup', upHandler);
                 const target = document.elementFromPoint(ev.clientX, ev.clientY);
+                
+                clearPreview();
                 activeBlock = mouseDragBlock;
                 processPlacement(target);
                 mouseDragBlock = null;
@@ -204,7 +241,7 @@
             window.addEventListener('mouseup', upHandler);
         }
 
-        // --- 공통 블록 배치 프로세스 ---
+        // --- 배치 연산 및 원상 복구 ---
         function processPlacement(target) {
             let placed = false;
 
@@ -214,13 +251,12 @@
                 const blockIndex = activeBlock.dataset.index;
                 const block = blockTemplates[blockIndex];
 
-                // 놓을 수 있는지 검증
                 let canPlace = true;
                 if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
                     for (let r = 0; r < block.rows; r++) {
                         for (let c = 0; c < block.cols; c++) {
-                            if (block.shape[r][c] === 1) {
-                                if (boardState[startRow + r][startCol + c] !== 0) canPlace = false;
+                            if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
+                                canPlace = false;
                             }
                         }
                     }
@@ -228,7 +264,6 @@
                     canPlace = false;
                 }
 
-                // 배치 성공 시 처리
                 if (canPlace) {
                     for (let r = 0; r < block.rows; r++) {
                         for (let c = 0; c < block.cols; c++) {
@@ -242,7 +277,6 @@
                 }
             }
 
-            // 블록을 원래 대기소 자리 스타일로 복원
             activeBlock.style.position = 'relative';
             activeBlock.style.left = '0px';
             activeBlock.style.top = '0px';
@@ -250,11 +284,11 @@
             activeBlock = null;
 
             if (placed) {
-                renderRack(); // 배치 성공 시 하단 리스폰 초기화 가능 구역
+                renderRack();
             }
         }
 
-        // 라인 제거 시스템
+        // 라인 삭제(Blast) 시스템
         function checkAndBlast() {
             let rowsToBlast = [];
             let colsToBlast = [];
@@ -272,12 +306,16 @@
 
             rowsToBlast.forEach(r => {
                 boardState[r].fill(0);
-                for(let c=0; c<COLS; c++) boardEl.children[r * COLS + c].style.backgroundColor = '#25252e';
+                for(let c=0; c<COLS; c++) {
+                    boardEl.children[r * COLS + c].style.backgroundColor = '#25252e';
+                    boardEl.children[r * COLS + c].style.opacity = '1';
+                }
             });
             colsToBlast.forEach(c => {
                 for (let r = 0; r < ROWS; r++) {
                     boardState[r][c] = 0;
                     boardEl.children[r * COLS + c].style.backgroundColor = '#25252e';
+                    boardEl.children[r * COLS + c].style.opacity = '1';
                 }
             });
         }
