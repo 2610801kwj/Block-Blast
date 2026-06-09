@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 (폭발 효과 추가)</title>
+    <title>블록 블라스터</title>
     <style>
         body {
             background: #141419; color: #fff; font-family: 'Malgun Gothic', sans-serif;
@@ -12,6 +12,31 @@
             touch-action: none;
         }
         
+        /* [추가] 시작 홈 화면 디자인 */
+        #homeScreen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #141419; z-index: 6000;
+        }
+        #homeScreen h1 {
+            font-size: 3rem; color: #ffeb3b; margin-bottom: 40px;
+            text-shadow: 0 0 20px rgba(255,235,59,0.5);
+            animation: pulse 2s infinite alternate;
+        }
+        .main-btn {
+            background: #4caf50; color: #fff; border: none;
+            padding: 16px 45px; font-size: 1.4rem; font-weight: bold;
+            border-radius: 8px; cursor: pointer; box-shadow: 0 5px 15px rgba(76,175,80,0.4);
+            transition: 0.2s;
+        }
+        .main-btn:active { transform: scale(0.95); background: #43a047; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); text-shadow: 0 0 10px rgba(255,235,59,0.3); }
+            100% { transform: scale(1.05); text-shadow: 0 0 25px rgba(255,235,59,0.6); }
+        }
+
+        /* 인게임 점수판 */
         .score-container {
             display: flex; gap: 40px; margin-bottom: 10px; font-size: 1.2rem; font-weight: bold;
         }
@@ -20,62 +45,57 @@
 
         /* 8x8 메인 게임판 */
         #board {
-            display: grid;
-            grid-template-columns: repeat(8, 42px);
-            grid-template-rows: repeat(8, 42px);
-            gap: 2px;
-            background: #141419;
-            padding: 6px;
-            border: 4px solid #444;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            position: relative;
+            display: grid; grid-template-columns: repeat(8, 42px); grid-template-rows: repeat(8, 42px); gap: 2px;
+            background: #141419; padding: 6px; border: 4px solid #444; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative;
         }
-        .cell {
-            background: #25252e;
-            border-radius: 4px;
-            box-sizing: border-box;
-            position: relative;
-        }
-
-        .divider {
-            width: 350px; height: 1px; background: #333; margin: 25px 0;
-        }
-
-        #rack {
-            display: flex; gap: 30px; justify-content: center; align-items: center;
-            width: 350px; height: 100px; position: relative;
-        }
+        .cell { background: #25252e; border-radius: 4px; box-sizing: border-box; position: relative; }
+        .divider { width: 350px; height: 1px; background: #333; margin: 25px 0; }
+        #rack { display: flex; gap: 30px; justify-content: center; align-items: center; width: 350px; height: 100px; position: relative; }
         
-        .block-container {
-            display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10;
-        }
+        .block-container { display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10; }
         .tile { border-radius: 3px; width: 26px; height: 26px; }
 
-        /* [효과 추가] 줄이 터질 때 사방으로 퍼지는 파티클 스타일 */
+        /* 이펙트 파티클 */
         .particle {
-            position: fixed;
-            width: 8px;
-            height: 8px;
-            border-radius: 2px;
-            pointer-events: none;
-            z-index: 2000;
-            animation: explode 0.5s ease-out forwards;
+            position: fixed; width: 8px; height: 8px; border-radius: 2px;
+            pointer-events: none; z-index: 2000; animation: explode 0.5s ease-out forwards;
+        }
+        @keyframes explode {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
         }
 
-        @keyframes explode {
-            0% {
-                transform: translate(0, 0) scale(1);
-                opacity: 1;
-            }
-            100% {
-                transform: translate(var(--dx), var(--dy)) scale(0);
-                opacity: 0;
-            }
+        /* 게임 오버 모달 팝업 및 버튼들 */
+        #gameOverModal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); z-index: 5000; flex-direction: column; align-items: center; justify-content: center;
         }
+        .modal-content {
+            background: #22222b; padding: 35px 40px; border-radius: 12px; text-align: center;
+            border: 3px solid #ff5722; box-shadow: 0 0 20px rgba(255,87,34,0.4);
+        }
+        .modal-content h2 { color: #ff5722; margin: 0 0 10px 0; font-size: 2.2rem; text-shadow: 0 0 10px rgba(255,87,34,0.3); }
+        .modal-content p { font-size: 1.1rem; margin: 10px 0 25px 0; color: #ccc; }
+        
+        /* [수정] 게임오버 버튼 그룹 레이아웃 */
+        .modal-btn-group { display: flex; gap: 15px; justify-content: center; }
+        .modal-btn {
+            color: #fff; border: none; padding: 12px 24px; font-size: 1.1rem; font-weight: bold;
+            border-radius: 6px; cursor: pointer; transition: 0.2s; min-width: 110px;
+        }
+        .btn-replay { background: #ff5722; }
+        .btn-replay:active { background: #e64a19; transform: scale(0.95); }
+        .btn-home { background: #555; }
+        .btn-home:active { background: #444; transform: scale(0.95); }
     </style>
 </head>
 <body>
+
+    <div id="homeScreen">
+        <h1>🧱 BLOCK BLAST</h1>
+        <button class="main-btn" onclick="startGame()">PLAY GAME</button>
+    </div>
 
     <div class="score-container">
         <div class="score-box">SCORE<br><span id="currentScore" class="score-val">0</span></div>
@@ -86,14 +106,27 @@
     <div class="divider"></div>
     <div id="rack"></div>
 
+    <div id="gameOverModal">
+        <div class="modal-content">
+            <h2>GAME OVER</h2>
+            <p>더 이상 블록을 놓을 공간이 없습니다!</p>
+            <div class="modal-btn-group">
+                <button class="modal-btn btn-replay" onclick="resetGame()">REPLAY</button>
+                <button class="modal-btn btn-home" onclick="goHome()">HOME</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const boardEl = document.getElementById('board');
         const rackEl = document.getElementById('rack');
         const currentScoreEl = document.getElementById('currentScore');
         const bestScoreEl = document.getElementById('bestScore');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const homeScreen = document.getElementById('homeScreen');
 
         const ROWS = 8, COLS = 8;
-        const boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         
         let score = 0;
         let bestScore = 0;
@@ -111,12 +144,6 @@
             }
         }
 
-        function placeFixedTile(r, c, color) {
-            boardState[r][c] = color;
-            const targetCell = boardEl.children[r * COLS + c];
-            targetCell.style.backgroundColor = color;
-        }
-
         const blockPool = [
             { shape: [[1]], color: '#9c27b0', rows: 1, cols: 1 },
             { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 },
@@ -129,12 +156,25 @@
             { shape: [[1, 1, 1, 1]], color: '#3f51b5', rows: 1, cols: 4 }
         ];
 
+        // [추가] 홈에서 플레이 버튼 눌렀을 때 진입 처리 함수
+        function startGame() {
+            homeScreen.style.display = 'none';
+            resetGame(); // 판을 깨끗이 초기화하고 블록 생성
+        }
+
+        // [추가] 게임오버 창에서 홈으로 나가는 기능
+        function goHome() {
+            gameOverModal.style.display = 'none';
+            homeScreen.style.display = 'flex';
+        }
+
         function spawnBlocks() {
             for (let i = 0; i < 3; i++) {
                 const randIndex = Math.floor(Math.random() * blockPool.length);
                 rackSlots[i] = blockPool[randIndex];
             }
             renderRack();
+            checkGameOver();
         }
 
         function renderRack() {
@@ -197,20 +237,7 @@
             const block = rackSlots[slotIndex];
             if (!block) return;
 
-            let canPlace = true;
-            if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
-                for (let r = 0; r < block.rows; r++) {
-                    for (let c = 0; c < block.cols; c++) {
-                        if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
-                            canPlace = false;
-                        }
-                    }
-                }
-            } else {
-                canPlace = false;
-            }
-
-            if (canPlace) {
+            if (canBlockFit(startRow, startCol, block)) {
                 for (let r = 0; r < block.rows; r++) {
                     for (let c = 0; c < block.cols; c++) {
                         if (block.shape[r][c] === 1) {
@@ -222,6 +249,48 @@
                 }
             }
         }
+
+        function canBlockFit(startRow, startCol, block) {
+            if (startRow + block.rows > ROWS || startCol + block.cols > COLS) return false;
+            for (let r = 0; r < block.rows; r++) {
+                for (let c = 0; c < block.cols; c++) {
+                    if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function checkGameOver() {
+            const availableBlocks = rackSlots.filter(b => b !== null);
+            if (availableBlocks.length === 0) return;
+
+            for (let block of availableBlocks) {
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        if (canBlockFit(r, c, block)) return;
+                    }
+                }
+            }
+            gameOverModal.style.display = 'flex';
+        }
+
+        function resetGame() {
+            score = 0;
+            currentScoreEl.textContent = '0';
+            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            
+            for (let i = 0; i < boardEl.children.length; i++) {
+                boardEl.children[i].style.backgroundColor = '#25252e';
+                boardEl.children[i].style.opacity = '1';
+            }
+            
+            gameOverModal.style.display = 'none';
+            spawnBlocks();
+        }
+
+        const TOUCH_OFFSET_Y = -40;
 
         function handleTouchStart(e) {
             e.preventDefault();
@@ -292,20 +361,15 @@
             window.addEventListener('mouseup', upHandler);
         }
 
-        // --- [효과 추가] 칸이 터질 때 파티클을 생성하는 함수 ---
         function createExplosion(cellEl, color) {
             const rect = cellEl.getBoundingClientRect();
-            // 각 타일 위치에서 6개의 파티클 조각을 생성
             for (let i = 0; i < 6; i++) {
                 const particle = document.createElement('div');
                 particle.className = 'particle';
                 particle.style.backgroundColor = color;
-                
-                // 타일의 중앙 부근에서 시작하도록 설정
                 particle.style.left = `${rect.left + rect.width / 2}px`;
                 particle.style.top = `${rect.top + rect.height / 2}px`;
                 
-                // 사방으로 퍼지는 무작위 방향과 거리 계산
                 const angle = Math.random() * Math.PI * 2;
                 const distance = Math.random() * 50 + 30; 
                 const dx = Math.cos(angle) * distance;
@@ -315,8 +379,6 @@
                 particle.style.setProperty('--dy', `${dy}px`);
                 
                 document.body.appendChild(particle);
-                
-                // 애니메이션이 끝나면 요소 삭제
                 setTimeout(() => particle.remove(), 500);
             }
         }
@@ -330,20 +392,7 @@
                 const startRow = parseInt(target.dataset.row);
                 const startCol = parseInt(target.dataset.col);
 
-                let canPlace = true;
-                if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
-                    for (let r = 0; r < block.rows; r++) {
-                        for (let c = 0; c < block.cols; c++) {
-                            if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
-                                canPlace = false;
-                            }
-                        }
-                    }
-                } else {
-                    canPlace = false;
-                }
-
-                if (canPlace) {
+                if (canBlockFit(startRow, startCol, block)) {
                     let tileCount = 0;
                     for (let r = 0; r < block.rows; r++) {
                         for (let c = 0; c < block.cols; c++) {
@@ -370,8 +419,13 @@
             activeBlock.style.zIndex = '10';
             activeBlock = null;
 
-            if (rackSlots.every(slot => slot === null)) {
-                spawnBlocks();
+            if (placed) {
+                if (rackSlots.every(slot => slot === null)) {
+                    spawnBlocks();
+                } else {
+                    renderRack();
+                    checkGameOver();
+                }
             } else {
                 renderRack();
             }
@@ -406,7 +460,6 @@
                 addScore(linesBlasted * 150);
             }
 
-            // [효과 적용] 타일이 지워지기 전에 해당 위치에 이펙트 발동
             rowsToBlast.forEach(r => {
                 for(let c = 0; c < COLS; c++) {
                     const cellEl = boardEl.children[r * COLS + c];
@@ -416,7 +469,6 @@
 
             colsToBlast.forEach(c => {
                 for (let r = 0; r < ROWS; r++) {
-                    // 가로줄 체크와 겹쳐서 이미 터진 곳이 아닐 때만 이펙트 추가 발생
                     if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) {
                         const cellEl = boardEl.children[r * COLS + c];
                         createExplosion(cellEl, boardState[r][c]);
@@ -424,7 +476,6 @@
                 }
             });
 
-            // 보드 상태 및 배경색 초기화
             rowsToBlast.forEach(r => {
                 boardState[r].fill(0);
                 for(let c=0; c<COLS; c++) {
@@ -440,8 +491,6 @@
                 }
             });
         }
-
-        spawnBlocks();
     </script>
 </body>
 </html>
