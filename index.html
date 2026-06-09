@@ -2,20 +2,22 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>블록 블라스터 (출력 100% 보장 버전)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>블록 블라스터 (태블릿 터치 지원)</title>
     <style>
         body {
             background: #141419; color: #fff; font-family: 'Malgun Gothic', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none;
+            touch-action: none; /* 터치 시 화면이 흔들리거나 스크롤되는 현상 방지 */
         }
-        h1 { margin: 0 0 15px 0; color: #ffeb3b; text-shadow: 0 0 10px rgba(255,235,59,0.3); }
+        h1 { margin: 0 0 15px 0; color: #ffeb3b; text-shadow: 0 0 10px rgba(255,235,59,0.3); font-size: 1.8rem; }
         
-        /* 8x8 메인 게임판 세팅 */
+        /* 8x8 메인 게임판 */
         #board {
             display: grid;
-            grid-template-columns: repeat(8, 45px);
-            grid-template-rows: repeat(8, 45px);
+            grid-template-columns: repeat(8, 42px);
+            grid-template-rows: repeat(8, 42px);
             gap: 2px;
             background: #141419;
             padding: 6px;
@@ -23,32 +25,29 @@
             border-radius: 8px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
-        /* 격자 무늬 칸 */
         .cell {
             background: #25252e;
             border-radius: 4px;
             box-sizing: border-box;
         }
 
-        /* 하단 대기소 고정 라인 */
         .divider {
-            width: 380px; height: 1px; background: #333; margin: 25px 0;
+            width: 350px; height: 1px; background: #333; margin: 20px 0;
         }
 
-        /* 하단 블록들이 들어가는 공간 */
+        /* 하단 블록 대기소 */
         #rack {
-            display: flex; gap: 30px; justify-content: center; align-items: center;
-            width: 380px; height: 100px;
+            display: flex; gap: 25px; justify-content: center; align-items: center;
+            width: 350px; height: 90px; position: relative;
         }
         
-        /* 드래그용 블록 컨테이너 */
+        /* 터치 드래그용 블록 컨테이너 */
         .block-container {
-            display: grid; gap: 1px; cursor: grab; position: relative;
+            display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10;
         }
-        .block-container:active { cursor: grabbing; }
-        .tile { border-radius: 3px; }
+        .tile { border-radius: 3px; width: 28px; height: 28px; }
 
-        .info { margin-top: 20px; color: #aaa; font-size: 0.9rem; text-align: center; }
+        .info { margin-top: 20px; color: #aaa; font-size: 0.85rem; text-align: center; width: 90%; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -61,7 +60,7 @@
 
     <div id="rack"></div>
 
-    <div class="info">👉 하단의 블록을 마우스로 드래그해서 격자판 위에 놓으세요!</div>
+    <div class="info">📱 태블릿/폰: 블록을 터치해서 판 위로 끌고 가세요!<br>💻 PC: 마우스로 드래그 앤 드롭 하세요!</div>
 
     <script>
         const boardEl = document.getElementById('board');
@@ -70,7 +69,7 @@
         const ROWS = 8, COLS = 8;
         const boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-        // 1. 메인 8x8 격자판 동적 생성 (절대 깨지지 않음)
+        // 1. 8x8 격자판 생성
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
@@ -81,34 +80,28 @@
             }
         }
 
-        // 테스트용 선행 블록 배치 코드 (판에 블록 정상 작동 확인용)
-        placeFixedTile(7, 0, '#ff5722');
-        placeFixedTile(7, 1, '#ff5722');
-
+        // 테스트용 선행 타일 배치 함수
         function placeFixedTile(r, c, color) {
             boardState[r][c] = color;
             const targetCell = boardEl.children[r * COLS + c];
             targetCell.style.backgroundColor = color;
         }
 
-        // 2. 하단 리스폰용 대기 블록 모양 데이터 정의
+        // 블록 모양 목록
         const blockTemplates = [
-            { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 }, // 2x2 네모
-            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 },      // 1x3 가로막대
-            { shape: [[1, 0], [1, 1]], color: '#ffeb3b', rows: 2, cols: 2 }  // ㄴ자 모양
+            { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 },
+            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 },
+            { shape: [[1, 0], [1, 1]], color: '#ffeb3b', rows: 2, cols: 2 }
         ];
 
-        // 3. 하단 대기소에 블록들 그려넣기
+        // 2. 대기소에 블록 렌더링
         function renderRack() {
-            rackEl.innerHTML = ''; // 초기화
+            rackEl.innerHTML = '';
             blockTemplates.forEach((tmpl, index) => {
                 const box = document.createElement('div');
                 box.className = 'block-container';
-                box.style.gridTemplateRows = `repeat(${tmpl.rows}, 30px)`;
-                box.style.gridTemplateColumns = `repeat(${tmpl.cols}, 30px)`;
-                box.draggable = true;
-
-                // 데이터 바인딩
+                box.style.gridTemplateRows = `repeat(${tmpl.rows}, 29px)`;
+                box.style.gridTemplateColumns = `repeat(${tmpl.cols}, 29px)`;
                 box.dataset.index = index;
 
                 for (let r = 0; r < tmpl.rows; r++) {
@@ -124,72 +117,151 @@
                     }
                 }
 
-                // 드래그앤드롭 이벤트 등록
-                box.addEventListener('dragstart', handleDragStart);
-                box.addEventListener('dragend', handleDragEnd);
+                // [핵심] 마우스 대용 터치 이벤트 리스너 등록
+                box.addEventListener('touchstart', handleTouchStart, { passive: false });
+                box.addEventListener('touchmove', handleTouchMove, { passive: false });
+                box.addEventListener('touchend', handleTouchEnd, { passive: false });
+                
+                // PC 마우스 호환용
+                box.addEventListener('mousedown', handleMouseDown);
+
                 rackEl.appendChild(box);
             });
         }
 
-        // 드래그 메커니즘 구현
-        let draggedIndex = null;
+        // --- 터치 제어 로직 ---
+        let activeBlock = null;
+        let startX = 0, startY = 0;
 
-        function handleDragStart(e) {
-            draggedIndex = this.dataset.index;
-            this.style.opacity = '0.4';
+        function handleTouchStart(e) {
+            e.preventDefault(); // 스크롤 등 기본 동작 차단
+            activeBlock = this;
+            const touch = e.touches[0];
+            
+            // 현재 블록의 중심점을 기준으로 잡기 위해 위치 기록
+            const rect = activeBlock.getBoundingClientRect();
+            activeBlock.dataset.offsetX = touch.clientX - rect.left;
+            activeBlock.dataset.offsetY = touch.clientY - rect.top;
+            
+            activeBlock.style.position = 'fixed';
+            activeBlock.style.zIndex = '1000';
+            moveBlock(touch.clientX, touch.clientY);
         }
 
-        function handleDragEnd(e) {
-            this.style.opacity = '1';
+        function handleTouchMove(e) {
+            if (!activeBlock) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            moveBlock(touch.clientX, touch.clientY);
+        }
+
+        function handleTouchEnd(e) {
+            if (!activeBlock) return;
             
-            // 마우스가 위치한 곳의 격자 요소 수집
-            const target = document.elementFromPoint(e.clientX, e.clientY);
-            if (!target || !target.classList.contains('cell')) return;
+            // 손가락을 뗀 마지막 위치의 좌표 구하기
+            const touch = e.changedTouches[0];
+            
+            // 해당 좌표 밑에 있는 'cell' 클래스를 가진 칸 찾기
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            processPlacement(target);
+        }
 
-            const startRow = parseInt(target.dataset.row);
-            const startCol = parseInt(target.dataset.col);
-            const block = blockTemplates[draggedIndex];
+        function moveBlock(clientX, clientY) {
+            const ox = parseFloat(activeBlock.dataset.offsetX);
+            const oy = parseFloat(activeBlock.dataset.offsetY);
+            activeBlock.style.left = `${clientX - ox}px`;
+            activeBlock.style.top = `${clientY - oy}px`;
+        }
 
-            // 배치 가능 여부 체크
-            let canPlace = true;
-            if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
-                for (let r = 0; r < block.rows; r++) {
-                    for (let c = 0; c < block.cols; c++) {
-                        if (block.shape[r][c] === 1) {
-                            if (boardState[startRow + r][startCol + c] !== 0) {
-                                canPlace = false;
+        // --- PC 마우스 제어 로직 (태블릿 겸용 지원) ---
+        let mouseDragBlock = null;
+        function handleMouseDown(e) {
+            mouseDragBlock = this;
+            const rect = mouseDragBlock.getBoundingClientRect();
+            mouseDragBlock.dataset.offsetX = e.clientX - rect.left;
+            mouseDragBlock.dataset.offsetY = e.clientY - rect.top;
+            mouseDragBlock.style.position = 'fixed';
+            mouseDragBlock.style.zIndex = '1000';
+            
+            const moveHandler = (ev) => {
+                const ox = parseFloat(mouseDragBlock.dataset.offsetX);
+                const oy = parseFloat(mouseDragBlock.dataset.offsetY);
+                mouseDragBlock.style.left = `${ev.clientX - ox}px`;
+                mouseDragBlock.style.top = `${ev.clientY - oy}px`;
+            };
+
+            const upHandler = (ev) => {
+                window.removeEventListener('mousemove', moveHandler);
+                window.removeEventListener('mouseup', upHandler);
+                const target = document.elementFromPoint(ev.clientX, ev.clientY);
+                activeBlock = mouseDragBlock;
+                processPlacement(target);
+                mouseDragBlock = null;
+            };
+
+            window.addEventListener('mousemove', moveHandler);
+            window.addEventListener('mouseup', upHandler);
+        }
+
+        // --- 공통 블록 배치 프로세스 ---
+        function processPlacement(target) {
+            let placed = false;
+
+            if (target && target.classList.contains('cell')) {
+                const startRow = parseInt(target.dataset.row);
+                const startCol = parseInt(target.dataset.col);
+                const blockIndex = activeBlock.dataset.index;
+                const block = blockTemplates[blockIndex];
+
+                // 놓을 수 있는지 검증
+                let canPlace = true;
+                if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
+                    for (let r = 0; r < block.rows; r++) {
+                        for (let c = 0; c < block.cols; c++) {
+                            if (block.shape[r][c] === 1) {
+                                if (boardState[startRow + r][startCol + c] !== 0) canPlace = false;
                             }
                         }
                     }
+                } else {
+                    canPlace = false;
                 }
-            } else {
-                canPlace = false;
-            }
 
-            // 배치 성공 시 연산 처리
-            if (canPlace) {
-                for (let r = 0; r < block.rows; r++) {
-                    for (let c = 0; c < block.cols; c++) {
-                        if (block.shape[r][c] === 1) {
-                            placeFixedTile(startRow + r, startCol + c, block.color);
+                // 배치 성공 시 처리
+                if (canPlace) {
+                    for (let r = 0; r < block.rows; r++) {
+                        for (let c = 0; c < block.cols; c++) {
+                            if (block.shape[r][c] === 1) {
+                                placeFixedTile(startRow + r, startCol + c, block.color);
+                            }
                         }
                     }
+                    checkAndBlast();
+                    placed = true;
                 }
-                // 줄 파괴 시스템 가동
-                checkAndBlast();
+            }
+
+            // 블록을 원래 대기소 자리 스타일로 복원
+            activeBlock.style.position = 'relative';
+            activeBlock.style.left = '0px';
+            activeBlock.style.top = '0px';
+            activeBlock.style.zIndex = '10';
+            activeBlock = null;
+
+            if (placed) {
+                renderRack(); // 배치 성공 시 하단 리스폰 초기화 가능 구역
             }
         }
 
-        // 라인 클리어(Blast) 시스템
+        // 라인 제거 시스템
         function checkAndBlast() {
             let rowsToBlast = [];
             let colsToBlast = [];
 
-            // 가로 검사
             for (let r = 0; r < ROWS; r++) {
                 if (boardState[r].every(cell => cell !== 0)) rowsToBlast.push(r);
             }
-            // 세로 검사
             for (let c = 0; c < COLS; c++) {
                 let colFull = true;
                 for (let r = 0; r < ROWS; r++) {
@@ -198,7 +270,6 @@
                 if (colFull) colsToBlast.push(c);
             }
 
-            // 폭파 및 색상 되돌리기
             rowsToBlast.forEach(r => {
                 boardState[r].fill(0);
                 for(let c=0; c<COLS; c++) boardEl.children[r * COLS + c].style.backgroundColor = '#25252e';
@@ -211,7 +282,6 @@
             });
         }
 
-        // 초기 실행 실행구
         renderRack();
     </script>
 </body>
