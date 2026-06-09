@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 (터치 관통 버그 완벽 수정본)</title>
+    <title>블록 블라스터 (폭발 효과 추가)</title>
     <style>
         body {
             background: #141419; color: #fff; font-family: 'Malgun Gothic', sans-serif;
@@ -11,8 +11,13 @@
             height: 100vh; margin: 0; user-select: none;
             touch-action: none;
         }
-        h1 { margin: 0 0 15px 0; color: #ffeb3b; text-shadow: 0 0 10px rgba(255,235,59,0.3); font-size: 1.8rem; }
         
+        .score-container {
+            display: flex; gap: 40px; margin-bottom: 10px; font-size: 1.2rem; font-weight: bold;
+        }
+        .score-box { text-align: center; }
+        .score-val { color: #ffeb3b; font-size: 1.6rem; text-shadow: 0 0 8px rgba(255,235,59,0.4); }
+
         /* 8x8 메인 게임판 */
         #board {
             display: grid;
@@ -24,50 +29,78 @@
             border: 4px solid #444;
             border-radius: 8px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            position: relative;
         }
         .cell {
             background: #25252e;
             border-radius: 4px;
             box-sizing: border-box;
+            position: relative;
         }
 
         .divider {
-            width: 350px; height: 1px; background: #333; margin: 20px 0;
+            width: 350px; height: 1px; background: #333; margin: 25px 0;
         }
 
-        /* 하단 블록 대기소 */
         #rack {
-            display: flex; gap: 25px; justify-content: center; align-items: center;
-            width: 350px; height: 90px; position: relative;
+            display: flex; gap: 30px; justify-content: center; align-items: center;
+            width: 350px; height: 100px; position: relative;
         }
         
-        /* 드래그용 블록 컨테이너 */
         .block-container {
             display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10;
         }
-        .tile { border-radius: 3px; width: 28px; height: 28px; }
+        .tile { border-radius: 3px; width: 26px; height: 26px; }
 
-        .info { margin-top: 20px; color: #aaa; font-size: 0.85rem; text-align: center; width: 90%; line-height: 1.4; }
+        /* [효과 추가] 줄이 터질 때 사방으로 퍼지는 파티클 스타일 */
+        .particle {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 2000;
+            animation: explode 0.5s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--dx), var(--dy)) scale(0);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <h1>🧱 BLOCK BLAST</h1>
+    <div class="score-container">
+        <div class="score-box">SCORE<br><span id="currentScore" class="score-val">0</span></div>
+        <div class="score-box">BEST<br><span id="bestScore" class="score-val">0</span></div>
+    </div>
     
     <div id="board"></div>
     <div class="divider"></div>
     <div id="rack"></div>
 
-    <div class="info">📱 <b>태블릿 완벽 지원:</b> 블록을 끌고 격자판 위로 올라가면<br>놓일 자리가 실시간 연한 색 잔상으로 100% 표시됩니다!</div>
-
     <script>
         const boardEl = document.getElementById('board');
         const rackEl = document.getElementById('rack');
+        const currentScoreEl = document.getElementById('currentScore');
+        const bestScoreEl = document.getElementById('bestScore');
 
         const ROWS = 8, COLS = 8;
         const boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        
+        let score = 0;
+        let bestScore = 0;
+        let activeBlock = null;
+        let rackSlots = [null, null, null];
 
-        // 8x8 격자판 동적 생성
+        // 격자판 생성
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
@@ -84,29 +117,48 @@
             targetCell.style.backgroundColor = color;
         }
 
-        // 블록 데이터
-        const blockTemplates = [
+        const blockPool = [
+            { shape: [[1]], color: '#9c27b0', rows: 1, cols: 1 },
             { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 },
+            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#4caf50', rows: 3, cols: 3 },
             { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 },
-            { shape: [[1, 0], [1, 1]], color: '#ffeb3b', rows: 2, cols: 2 }
+            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 },
+            { shape: [[1, 0], [1, 0], [1, 1]], color: '#ff9800', rows: 3, cols: 2 },
+            { shape: [[1, 1, 1], [0, 1, 0]], color: '#ffeb3b', rows: 2, cols: 3 },
+            { shape: [[1, 1], [0, 1]], color: '#03a9f4', rows: 2, cols: 2 },
+            { shape: [[1, 1, 1, 1]], color: '#3f51b5', rows: 1, cols: 4 }
         ];
 
-        // 대기소 렌더링
+        function spawnBlocks() {
+            for (let i = 0; i < 3; i++) {
+                const randIndex = Math.floor(Math.random() * blockPool.length);
+                rackSlots[i] = blockPool[randIndex];
+            }
+            renderRack();
+        }
+
         function renderRack() {
             rackEl.innerHTML = '';
-            blockTemplates.forEach((tmpl, index) => {
+            rackSlots.forEach((block, slotIndex) => {
+                if (!block) {
+                    const emptyBox = document.createElement('div');
+                    emptyBox.style.width = '80px';
+                    rackEl.appendChild(emptyBox);
+                    return;
+                }
+
                 const box = document.createElement('div');
                 box.className = 'block-container';
-                box.style.gridTemplateRows = `repeat(${tmpl.rows}, 29px)`;
-                box.style.gridTemplateColumns = `repeat(${tmpl.cols}, 29px)`;
-                box.dataset.index = index;
+                box.style.gridTemplateRows = `repeat(${block.rows}, 27px)`;
+                box.style.gridTemplateColumns = `repeat(${block.cols}, 27px)`;
+                box.dataset.slotIndex = slotIndex;
 
-                for (let r = 0; r < tmpl.rows; r++) {
-                    for (let c = 0; c < tmpl.cols; c++) {
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
                         const tile = document.createElement('div');
                         tile.className = 'tile';
-                        if (tmpl.shape[r][c] === 1) {
-                            tile.style.backgroundColor = tmpl.color;
+                        if (block.shape[r][c] === 1) {
+                            tile.style.backgroundColor = block.color;
                         } else {
                             tile.style.backgroundColor = 'transparent';
                         }
@@ -114,19 +166,15 @@
                     }
                 }
 
-                // 태블릿 터치 이벤트
                 box.addEventListener('touchstart', handleTouchStart, { passive: false });
                 box.addEventListener('touchmove', handleTouchMove, { passive: false });
                 box.addEventListener('touchend', handleTouchEnd, { passive: false });
-                
-                // PC 마우스 이벤트
                 box.addEventListener('mousedown', handleMouseDown);
 
                 rackEl.appendChild(box);
             });
         }
 
-        // --- 잔상 프리뷰 클리어 ---
         function clearPreview() {
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
@@ -139,17 +187,15 @@
             }
         }
 
-        // --- 실시간 잔상 업데이트 ---
-        function updatePreview(clientX, clientY, blockIndex) {
+        function updatePreview(clientX, clientY, slotIndex) {
             clearPreview();
-            
-            // 드래그 중인 블록을 관통하여 그 밑에 있는 실제 격자판 칸을 인식함
             const target = document.elementFromPoint(clientX, clientY);
             if (!target || !target.classList.contains('cell')) return;
 
             const startRow = parseInt(target.dataset.row);
             const startCol = parseInt(target.dataset.col);
-            const block = blockTemplates[blockIndex];
+            const block = rackSlots[slotIndex];
+            if (!block) return;
 
             let canPlace = true;
             if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
@@ -164,7 +210,6 @@
                 canPlace = false;
             }
 
-            // 놓을 수 있는 자리면 선명한 반투명 잔상 표시
             if (canPlace) {
                 for (let r = 0; r < block.rows; r++) {
                     for (let c = 0; c < block.cols; c++) {
@@ -178,10 +223,6 @@
             }
         }
 
-        // --- 통합 제어 변수 ---
-        let activeBlock = null;
-
-        // --- 1. 태블릿 전용 터치 로직 ---
         function handleTouchStart(e) {
             e.preventDefault();
             activeBlock = this;
@@ -189,65 +230,58 @@
             
             activeBlock.style.position = 'fixed';
             activeBlock.style.zIndex = '1000';
-            activeBlock.style.transform = 'scale(1.2) translateY(-40px)'; // 손가락 살짝 위로 띄워 조준선 개선
-            activeBlock.style.pointerEvents = 'none'; // [가장 중요] 블록 뒷면의 격자판이 인식되도록 레이어 관통 설정!!
+            activeBlock.style.transform = 'scale(1.2) translateY(-40px)';
+            activeBlock.style.pointerEvents = 'none';
 
             moveBlock(touch.clientX, touch.clientY);
-            updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.index);
+            updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
         }
 
         function handleTouchMove(e) {
             if (!activeBlock) return;
             e.preventDefault();
             const touch = e.touches[0];
-            
             moveBlock(touch.clientX, touch.clientY);
-            updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.index);
+            updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
         }
 
         function handleTouchEnd(e) {
             if (!activeBlock) return;
             const touch = e.changedTouches[0];
-            
-            // 터치가 끝나는 지점의 바닥 격자 감지 (Y축 보정 반영)
             const target = document.elementFromPoint(touch.clientX, touch.clientY - 40);
             
             clearPreview();
             activeBlock.style.transform = 'none';
-            activeBlock.style.pointerEvents = 'auto'; // 관통 비활성화 원상 복구
+            activeBlock.style.pointerEvents = 'auto';
             
             processPlacement(target);
         }
 
         function moveBlock(clientX, clientY) {
             const rect = activeBlock.getBoundingClientRect();
-            // 손가락 터치 위치 정중앙 매핑 (Y축은 -40px만큼 띄움)
             activeBlock.style.left = `${clientX - rect.width / 2}px`;
             activeBlock.style.top = `${clientY - rect.height / 2 - 40}px`;
         }
 
-        // --- 2. PC 마우스용 호환 로직 ---
         let mouseDragBlock = null;
         function handleMouseDown(e) {
             mouseDragBlock = this;
             mouseDragBlock.style.position = 'fixed';
             mouseDragBlock.style.zIndex = '1000';
-            mouseDragBlock.style.pointerEvents = 'none'; // 마우스도 관통 옵션 활성화
+            mouseDragBlock.style.pointerEvents = 'none';
             
             const moveHandler = (ev) => {
                 const rect = mouseDragBlock.getBoundingClientRect();
                 mouseDragBlock.style.left = `${ev.clientX - rect.width/2}px`;
                 mouseDragBlock.style.top = `${ev.clientY - rect.height/2}px`;
-                updatePreview(ev.clientX, ev.clientY, mouseDragBlock.dataset.index);
+                updatePreview(ev.clientX, ev.clientY, mouseDragBlock.dataset.slotIndex);
             };
 
             const upHandler = (ev) => {
                 window.removeEventListener('mousemove', moveHandler);
                 window.removeEventListener('mouseup', upHandler);
-                
                 const target = document.elementFromPoint(ev.clientX, ev.clientY);
                 clearPreview();
-                
                 activeBlock = mouseDragBlock;
                 activeBlock.style.pointerEvents = 'auto';
                 processPlacement(target);
@@ -258,15 +292,43 @@
             window.addEventListener('mouseup', upHandler);
         }
 
-        // --- 최종 판정 및 안착 처리 ---
+        // --- [효과 추가] 칸이 터질 때 파티클을 생성하는 함수 ---
+        function createExplosion(cellEl, color) {
+            const rect = cellEl.getBoundingClientRect();
+            // 각 타일 위치에서 6개의 파티클 조각을 생성
+            for (let i = 0; i < 6; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.backgroundColor = color;
+                
+                // 타일의 중앙 부근에서 시작하도록 설정
+                particle.style.left = `${rect.left + rect.width / 2}px`;
+                particle.style.top = `${rect.top + rect.height / 2}px`;
+                
+                // 사방으로 퍼지는 무작위 방향과 거리 계산
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 50 + 30; 
+                const dx = Math.cos(angle) * distance;
+                const dy = Math.sin(angle) * distance;
+                
+                particle.style.setProperty('--dx', `${dx}px`);
+                particle.style.setProperty('--dy', `${dy}px`);
+                
+                document.body.appendChild(particle);
+                
+                // 애니메이션이 끝나면 요소 삭제
+                setTimeout(() => particle.remove(), 500);
+            }
+        }
+
         function processPlacement(target) {
             let placed = false;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex);
+            const block = rackSlots[slotIndex];
 
-            if (target && target.classList.contains('cell')) {
+            if (target && target.classList.contains('cell') && block) {
                 const startRow = parseInt(target.dataset.row);
                 const startCol = parseInt(target.dataset.col);
-                const blockIndex = activeBlock.dataset.index;
-                const block = blockTemplates[blockIndex];
 
                 let canPlace = true;
                 if (startRow + block.rows <= ROWS && startCol + block.cols <= COLS) {
@@ -282,31 +344,48 @@
                 }
 
                 if (canPlace) {
+                    let tileCount = 0;
                     for (let r = 0; r < block.rows; r++) {
                         for (let c = 0; c < block.cols; c++) {
                             if (block.shape[r][c] === 1) {
-                                placeFixedTile(startRow + r, startCol + c, block.color);
+                                boardState[startRow + r][startCol + c] = block.color;
+                                const targetCell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
+                                targetCell.style.backgroundColor = block.color;
+                                tileCount++;
                             }
                         }
                     }
+                    
+                    addScore(tileCount * 10);
                     checkAndBlast();
+                    
+                    rackSlots[slotIndex] = null;
                     placed = true;
                 }
             }
 
-            // 대기소 원위치 복구
             activeBlock.style.position = 'relative';
             activeBlock.style.left = '0px';
             activeBlock.style.top = '0px';
             activeBlock.style.zIndex = '10';
             activeBlock = null;
 
-            if (placed) {
-                renderRack(); // 놓기 성공 시 리스폰
+            if (rackSlots.every(slot => slot === null)) {
+                spawnBlocks();
+            } else {
+                renderRack();
             }
         }
 
-        // 줄 파괴 함수
+        function addScore(amount) {
+            score += amount;
+            currentScoreEl.textContent = score;
+            if (score > bestScore) {
+                bestScore = score;
+                bestScoreEl.textContent = bestScore;
+            }
+        }
+
         function checkAndBlast() {
             let rowsToBlast = [];
             let colsToBlast = [];
@@ -322,6 +401,30 @@
                 if (colFull) colsToBlast.push(c);
             }
 
+            const linesBlasted = rowsToBlast.length + colsToBlast.length;
+            if (linesBlasted > 0) {
+                addScore(linesBlasted * 150);
+            }
+
+            // [효과 적용] 타일이 지워지기 전에 해당 위치에 이펙트 발동
+            rowsToBlast.forEach(r => {
+                for(let c = 0; c < COLS; c++) {
+                    const cellEl = boardEl.children[r * COLS + c];
+                    createExplosion(cellEl, boardState[r][c]);
+                }
+            });
+
+            colsToBlast.forEach(c => {
+                for (let r = 0; r < ROWS; r++) {
+                    // 가로줄 체크와 겹쳐서 이미 터진 곳이 아닐 때만 이펙트 추가 발생
+                    if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) {
+                        const cellEl = boardEl.children[r * COLS + c];
+                        createExplosion(cellEl, boardState[r][c]);
+                    }
+                }
+            });
+
+            // 보드 상태 및 배경색 초기화
             rowsToBlast.forEach(r => {
                 boardState[r].fill(0);
                 for(let c=0; c<COLS; c++) {
@@ -338,7 +441,7 @@
             });
         }
 
-        renderRack();
+        spawnBlocks();
     </script>
 </body>
 </html>
