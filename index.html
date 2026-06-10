@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 렉 최적화 버전</title>
+    <title>블록 블라스터 - 대화면 비율 유지 버전</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
@@ -36,19 +36,25 @@
             gap: 20px;
         }
 
-        .score-container { display: flex; gap: 40px; margin-bottom: 15px; font-size: 1.2rem; font-weight: bold; }
+        .score-container { display: flex; gap: 40px; margin-bottom: 15px; font-size: 1.3rem; font-weight: bold; }
         .score-box { text-align: center; }
-        .score-val { color: #ffeb3b; font-size: 1.6rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
+        .score-val { color: #ffeb3b; font-size: 1.8rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
 
+        /* [변경] 보드판 크기를 화면에 맞춰 큼직하게 확대 (최대 400px 폭) */
         #board {
-            display: grid; grid-template-columns: repeat(8, 44px); grid-template-rows: repeat(8, 44px); gap: 2px;
-            padding: 8px; border: 5px solid #333; border-radius: 12px;
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 3px;
+            padding: 10px; border: 5px solid #333; border-radius: 16px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.6); position: relative; 
+            width: 90vw; height: 90vw; max-width: 400px; max-height: 400px;
+            box-sizing: border-box;
         }
+        
+        /* [변경] 사진 비율을 핸드폰 배경화면처럼 가운데 중심으로 채우기(cover) 설정 */
         .cell { 
-            background: #202124; border-radius: 5px; box-sizing: border-box; 
-            position: relative; transition: background 0.1s ease;
-            background-size: 366px 366px;
+            background: #202124; border-radius: 6px; box-sizing: border-box; 
+            position: relative;
+            background-size: cover;
+            background-position: center;
             background-repeat: no-repeat;
         }
 
@@ -58,13 +64,16 @@
             z-index: 50;
         }
 
-        .divider { width: 360px; height: 1px; background: rgba(255,255,255,0.1); margin: 25px 0; }
-        #rack { display: flex; gap: 25px; justify-content: center; align-items: center; width: 360px; height: 140px; position: relative; }
+        .divider { width: 90vw; max-width: 400px; height: 1px; background: rgba(255,255,255,0.1); margin: 20px 0; }
+        
+        /* [변경] 하단 하치대 크기 보정 */
+        #rack { display: flex; gap: 15px; justify-content: center; align-items: center; width: 90vw; max-width: 400px; height: 120px; position: relative; }
         
         .block-container { display: grid; gap: 2px; position: relative; touch-action: none; z-index: 10; cursor: grab; }
         .block-container.dragging { transform: scale(1.0) !important; }
         
-        .tile { border-radius: 5px; width: 44px; height: 44px; box-sizing: border-box; pointer-events: none; }
+        /* 드래그하는 블록의 기본 타일 크기 */
+        .tile { border-radius: 4px; width: 32px; height: 32px; box-sizing: border-box; pointer-events: none; }
 
         .particle {
             position: fixed; width: 8px; height: 8px; border-radius: 2px;
@@ -173,7 +182,7 @@
 
         let isBetaMode = false;
         let uploadedImgUrl = "";
-        let currentLargestComponent = new Set(); // 현재 면적이 가장 큰 그룹 저장 캐시
+        let currentLargestComponent = new Set(); 
 
         const themes = [
             { bg: '#111216', border: '#383a40', cell: '#202124' }, 
@@ -195,7 +204,7 @@
                 boardEl.style.borderColor = randomTheme.border;
                 currentCellColor = randomTheme.cell;
             }
-            refreshBoardGraphics(false); // 초기 화면은 연산 없이 기본 세팅
+            refreshBoardGraphics(false);
         }
 
         for (let r = 0; r < ROWS; r++) {
@@ -204,7 +213,6 @@
                 cell.className = 'cell';
                 cell.dataset.row = r;
                 cell.dataset.col = c;
-                cell.style.backgroundPosition = `-${c * 46}px -${r * 46}px`;
                 boardEl.appendChild(cell);
             }
         }
@@ -265,17 +273,17 @@
             rackSlots.forEach((block, slotIndex) => {
                 if (!block) {
                     const emptyBox = document.createElement('div');
-                    emptyBox.style.width = '100px';
+                    emptyBox.style.width = '80px';
                     rackEl.appendChild(emptyBox);
                     return;
                 }
 
                 const box = document.createElement('div');
                 box.className = 'block-container';
-                box.style.gridTemplateRows = `repeat(${block.rows}, 44px)`;
-                box.style.gridTemplateColumns = `repeat(${block.cols}, 44px)`;
+                box.style.gridTemplateRows = `repeat(${block.rows}, 32px)`;
+                box.style.gridTemplateColumns = `repeat(${block.cols}, 32px)`;
                 box.dataset.slotIndex = slotIndex;
-                box.style.transform = 'scale(0.7)';
+                box.style.transform = 'scale(0.85)';
                 box.style.transformOrigin = 'center center';
 
                 for (let r = 0; r < block.rows; r++) {
@@ -284,7 +292,7 @@
                         tile.className = 'tile';
                         if (block.shape[r][c] === 1) {
                             tile.style.backgroundColor = block.color;
-                            tile.style.boxShadow = 'inset 0 0 6px rgba(255,255,255,0.3)';
+                            tile.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.3)';
                         } else {
                             tile.style.backgroundColor = 'transparent';
                         }
@@ -302,22 +310,23 @@
         }
 
         function clearPreview() {
-            refreshBoardGraphics(false); // 드래그 취소/종료 시에는 무거운 계산 없이 기존 그래픽만 복원
+            refreshBoardGraphics(false); 
         }
 
-        // [최적화 핵심] 매 프레임 계산하는 대신 필요할 때만 계산하도록 인자(runBFS) 추가
+        // [변경 포인트] 개별 조각 분할이 아닌 cover 방식을 사용하므로 한 덩어리로 자연스럽게 출력됨
         function refreshBoardGraphics(runBFS = false) {
             if (isBetaMode && runBFS) {
                 currentLargestComponent = findLargestConnectedComponent();
             }
 
             for (let r = 0; r < ROWS; r++) {
+                const rowOffset = r * COLS;
                 for (let c = 0; c < COLS; c++) {
-                    const cell = boardEl.children[r * COLS + c];
+                    const cell = boardEl.children[rowOffset + c];
                     cell.classList.remove('glow-blast');
                     
                     if (boardState[r][c] !== 0) {
-                        const key = `${r},${c}`;
+                        const key = (r << 4) | c;
                         if (isBetaMode && currentLargestComponent.has(key)) {
                             cell.style.backgroundImage = `url(${uploadedImgUrl})`;
                             cell.style.backgroundColor = 'transparent';
@@ -325,40 +334,43 @@
                             cell.style.backgroundImage = 'none';
                             cell.style.backgroundColor = boardState[r][c];
                         }
-                        cell.style.opacity = '1';
                     } else {
                         cell.style.backgroundImage = 'none';
                         cell.style.backgroundColor = currentCellColor;
-                        cell.style.opacity = '1';
                     }
                 }
             }
         }
 
         function findLargestConnectedComponent() {
-            let visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+            let visited = new Uint8Array(128); 
             let maxComponent = new Set();
             const dr = [-1, 1, 0, 0];
             const dc = [0, 0, -1, 1];
 
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
-                    if (boardState[r][c] !== 0 && !visited[r][c]) {
+                    const startKey = (r << 4) | c;
+                    if (boardState[r][c] !== 0 && !visited[startKey]) {
                         let currentComponent = new Set();
-                        let queue = [[r, c]];
-                        visited[r][c] = true;
+                        let queue = [startKey];
+                        visited[startKey] = 1;
 
                         while (queue.length > 0) {
-                            const [currR, currC] = queue.shift();
-                            currentComponent.add(`${currR},${currC}`);
+                            const curr = queue.shift();
+                            currentComponent.add(curr);
+
+                            const currR = curr >> 4;
+                            const currC = curr & 15;
 
                             for (let i = 0; i < 4; i++) {
                                 const nr = currR + dr[i];
                                 const nc = currC + dc[i];
                                 if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
-                                    if (boardState[nr][nc] !== 0 && !visited[nr][nc]) {
-                                        visited[nr][nc] = true;
-                                        queue.push([nr, nc]);
+                                    const nextKey = (nr << 4) | nc;
+                                    if (boardState[nr][nc] !== 0 && !visited[nextKey]) {
+                                        visited[nextKey] = 1;
+                                        queue.push(nextKey);
                                     }
                                 }
                             }
@@ -379,8 +391,9 @@
                 if (clientX < boardRect.left || clientX > boardRect.right || clientY < boardRect.top || clientY > boardRect.bottom) {
                     return null;
                 }
-                const c = Math.floor((clientX - boardRect.left - 8) / 46);
-                const r = Math.floor((clientY - boardRect.top - 8) / 46);
+                const cellSize = boardRect.width / 8;
+                const c = Math.floor((clientX - boardRect.left) / cellSize);
+                const r = Math.floor((clientY - boardRect.top) / cellSize);
                 if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
                     return { startRow: r - startTileRowOffset, startCol: c - startTileColOffset };
                 }
@@ -392,8 +405,9 @@
             };
         }
 
+        // 반응형 보드판에 대응하도록 동적 위치 탐색 인덱스 부여 처리
         function updatePreview(clientX, clientY, slotIndex) {
-            refreshBoardGraphics(false); // 드래그 중(프리뷰)에는 BFS 연산을 끄고 기존 맵 상태 유지
+            refreshBoardGraphics(false); 
             const block = rackSlots[slotIndex];
             if (!block) return;
 
@@ -413,7 +427,6 @@
                                 const cell = boardEl.children[vr * COLS + vc];
                                 cell.style.backgroundColor = block.color;
                                 cell.style.backgroundImage = 'none';
-                                cell.style.opacity = '0.5'; 
                                 virtualBoard[vr][vc] = block.color;
                             }
                         }
@@ -601,15 +614,23 @@
                     rowsToBlast.forEach(r => boardState[r].fill(0));
                     colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
 
-                    // 터질 때도 한 번만 정밀 계산
-                    refreshBoardGraphics(true);
-                    checkGameOver();
+                    requestAnimationFrame(() => {
+                        refreshBoardGraphics(true);
+                        checkGameOver();
+                    });
                 }, 150);
             } else {
                 comboCount = 0;
-                // [블록이 정상 배치되었을 때] 이 타이밍에만 딱 한 번 무거운 BFS 연산을 수행(true)
-                refreshBoardGraphics(true);
+                requestAnimationFrame(() => {
+                    refreshBoardGraphics(true);
+                });
             }
+        }
+        
+        // 데이터셋 마킹 작업 추가
+        for(let i=0; i<ROWS*COLS; i++) {
+            boardEl.children[i].dataset.row = Math.floor(i / COLS);
+            boardEl.children[i].dataset.col = i % COLS;
         }
     </script>
 </body>
