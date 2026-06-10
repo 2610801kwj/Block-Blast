@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 무조건 렉 제로 최종판</title>
+    <title>블록 블라스터 - 최종 수정판</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none; touch-action: none;
+            overflow: hidden;
         }
         
         #homeScreen {
@@ -36,33 +37,40 @@
             gap: 20px;
         }
 
-        .score-container { display: flex; gap: 40px; margin-bottom: 15px; font-size: 1.3rem; font-weight: bold; }
+        /* 화면을 더 알차게 채우도록 상단 여백 조절 */
+        .score-container { 
+            display: flex; gap: 50px; margin-bottom: 10px; font-size: 1.4rem; font-weight: bold; 
+            transform: translate3d(0,0,0);
+        }
         .score-box { text-align: center; }
-        .score-val { color: #ffeb3b; font-size: 1.8rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
+        .score-val { color: #ffeb3b; font-size: 2rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
 
+        /* 보드판 크기를 키워 화면에 더 꽉 차게 변경 */
         #board {
-            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 3px;
-            padding: 10px; border: 5px solid #333; border-radius: 16px;
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 4px;
+            padding: 12px; border: 5px solid #333; border-radius: 16px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.6); position: relative; 
-            width: 90vw; height: 90vw; max-width: 400px; max-height: 400px;
+            width: 94vw; height: 94vw; max-width: 430px; max-height: 430px;
             box-sizing: border-box;
+            background: #15161a;
+            transform: translate3d(0,0,0);
         }
         
         .cell { 
             background: #202124; border-radius: 6px; box-sizing: border-box; 
             position: relative; overflow: hidden;
-            will-change: background-color;
+            transform: translate3d(0,0,0);
         }
 
-        /* [렉 해결 핵심 치트키] 이미지 레이어를 내부에 미리 생성해 두고 투명도만 조절 */
+        /* 끊김 없는 모션을 위해 하드웨어 3D 가속 적용 */
         .cell-img-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-repeat: no-repeat;
             background-size: 800% 800%;
             background-position: var(--pos-x, 0%) var(--pos-y, 0%);
-            opacity: 0; /* 평소엔 완전히 숨김 */
-            transition: opacity 0.05s ease; /* 아주 부드럽게 켜지도록 설정 */
-            will-change: opacity; /* GPU 가속 강제 탑재 */
+            opacity: 0;
+            will-change: opacity;
+            transform: translate3d(0,0,0);
         }
 
         .cell.glow-blast {
@@ -71,36 +79,43 @@
             z-index: 50;
         }
 
-        .divider { width: 90vw; max-width: 400px; height: 1px; background: rgba(255,255,255,0.1); margin: 20px 0; }
-        #rack { display: flex; gap: 15px; justify-content: center; align-items: center; width: 90vw; max-width: 400px; height: 120px; position: relative; }
+        .divider { width: 94vw; max-width: 430px; height: 1px; background: rgba(255,255,255,0.1); margin: 15px 0; }
         
-        .block-container { display: grid; gap: 2px; position: relative; touch-action: none; z-index: 10; cursor: grab; }
-        .block-container.dragging { transform: scale(1.0) !important; }
+        /* 하단 공간도 더 꽉 차고 큼직하게 최적화 */
+        #rack { 
+            display: flex; gap: 20px; justify-content: center; align-items: center; 
+            width: 94vw; max-width: 430px; height: 140px; position: relative; 
+            transform: translate3d(0,0,0);
+        }
         
-        .tile { border-radius: 4px; width: 32px; height: 32px; box-sizing: border-box; pointer-events: none; }
+        .block-container { display: grid; gap: 3px; position: relative; touch-action: none; z-index: 10; cursor: grab; transform: translate3d(0,0,0); }
+        .block-container.dragging { transform: scale(1.05) translate3d(0,0,0) !important; }
+        
+        /* 블록 타일 크기도 살짝 키움 */
+        .tile { border-radius: 5px; width: 36px; height: 36px; box-sizing: border-box; pointer-events: none; transform: translate3d(0,0,0); }
 
         .particle {
             position: fixed; width: 8px; height: 8px; border-radius: 2px;
-            pointer-events: none; z-index: 2000; animation: explode 0.5s ease-out forwards;
+            pointer-events: none; z-index: 2000; animation: explode 0.4s ease-out forwards;
         }
         @keyframes explode {
-            0% { transform: translate(0, 0) scale(1); opacity: 1; }
-            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+            0% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+            100% { transform: translate3d(var(--dx), var(--dy), 0) scale(0); opacity: 0; }
         }
 
         #comboText {
             position: fixed; font-size: 2.5rem; font-weight: 900; color: #fff;
             text-shadow: 0 0 15px #ff1744, 0 0 30px #ff1744; pointer-events: none;
-            z-index: 4000; opacity: 0; transform: scale(0.3); text-align: center;
+            z-index: 4000; opacity: 0; transform: scale(0.3) translate3d(0,0,0); text-align: center;
         }
-        .combo-animate { animation: popText 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .combo-animate { animation: popText 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 
         @keyframes popText {
-            0% { opacity: 0; transform: scale(0.3) rotate(-5deg); }
-            30% { opacity: 1; transform: scale(1.1) rotate(5deg); }
-            50% { transform: scale(1) rotate(0deg); }
-            80% { opacity: 1; transform: translateY(-30px) scale(1); }
-            100% { opacity: 0; transform: translateY(-50px) scale(0.8); }
+            0% { opacity: 0; transform: scale(0.3) rotate(-5deg) translate3d(0,0,0); }
+            30% { opacity: 1; transform: scale(1.1) rotate(5deg) translate3d(0,0,0); }
+            50% { transform: scale(1) rotate(0deg) translate3d(0,0,0); }
+            80% { opacity: 1; transform: translateY(-30px) scale(1) translate3d(0,0,0); }
+            100% { opacity: 0; transform: translateY(-50px) scale(0.8) translate3d(0,0,0); }
         }
 
         #gameOverModal {
@@ -125,7 +140,7 @@
 <body>
 
     <div id="homeScreen">
-        <h1>🧱 BLOCK BLAST</h1>
+        <h1>🧱 BLOCK BLAST!</h1>
         <button class="main-btn" onclick="startGame(false)">PLAY GAME</button>
         <button class="main-btn beta-btn" onclick="openBetaModal()">🧪 β-test MODE</button>
     </div>
@@ -190,7 +205,6 @@
 
         let currentCellColor = '#202124';
 
-        // 8x8 판 생성 시 이미지 레이어도 미리 숨겨둔 채 전부 깔아둡니다.
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
@@ -236,12 +250,9 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 uploadedImgUrl = e.target.result;
-                
-                // [렉 제거의 핵심] 게임 시작 전 64개 숨은 레이어에 주소를 '미리' 한 번만 주입
                 for(let i=0; i<ROWS*COLS; i++) {
                     boardEl.children[i].querySelector('.cell-img-layer').style.backgroundImage = `url(${uploadedImgUrl})`;
                 }
-
                 uploadModal.style.display = 'none';
                 homeScreen.style.display = 'none';
                 startGame(true);
@@ -278,15 +289,15 @@
             rackSlots.forEach((block, slotIndex) => {
                 if (!block) {
                     const emptyBox = document.createElement('div');
-                    emptyBox.style.width = '80px';
+                    emptyBox.style.width = '90px';
                     rackEl.appendChild(emptyBox);
                     return;
                 }
 
                 const box = document.createElement('div');
                 box.className = 'block-container';
-                box.style.gridTemplateRows = `repeat(${block.rows}, 32px)`;
-                box.style.gridTemplateColumns = `repeat(${block.cols}, 32px)`;
+                box.style.gridTemplateRows = `repeat(${block.rows}, 36px)`;
+                box.style.gridTemplateColumns = `repeat(${block.cols}, 36px)`;
                 box.dataset.slotIndex = slotIndex;
                 box.style.transform = 'scale(0.85)';
                 box.style.transformOrigin = 'center center';
@@ -314,7 +325,6 @@
             });
         }
 
-        // [렉 제로 매커니즘 완료] 단순 투명도(opacity) 스위칭만 하므로 브라우저 버퍼링 제로 보장
         function refreshBoardGraphics(runBFS = false) {
             if (isBetaMode && runBFS) {
                 currentLargestComponent = findLargestConnectedComponent();
@@ -331,7 +341,7 @@
                         const key = (r << 4) | c;
                         if (isBetaMode && currentLargestComponent.has(key)) {
                             cell.style.backgroundColor = 'transparent';
-                            imgLayer.style.opacity = '1'; /* 이미 켜진 그림 숨김 해제 */
+                            imgLayer.style.opacity = '1';
                         } else {
                             imgLayer.style.opacity = '0';
                             cell.style.backgroundColor = boardState[r][c];
@@ -459,13 +469,14 @@
             return true;
         }
 
+        /* [핵심 버그 수정 완료] 게임오버 여부를 강제로 즉시 판단하지 않고, 터지고 비워진 뒤 호출받도록 보장 */
         function checkGameOver() {
             const availableBlocks = rackSlots.filter(b => b !== null);
             if (availableBlocks.length === 0) return;
             for (let block of availableBlocks) {
                 for (let r = 0; r < ROWS; r++) {
                     for (let c = 0; c < COLS; c++) {
-                        if (canBlockFit(r, c, block)) return;
+                        if (canBlockFit(r, c, block)) return; 
                     }
                 }
             }
@@ -539,7 +550,7 @@
                 particle.style.left = `${rect.left + rect.width / 2}px`; particle.style.top = `${rect.top + rect.height / 2}px`;
                 const angle = Math.random() * Math.PI * 2; const distance = Math.random() * 50 + 30;
                 particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`); particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
-                document.body.appendChild(particle); setTimeout(() => { particle.remove(); }, 500);
+                document.body.appendChild(particle); setTimeout(() => { particle.remove(); }, 400);
             }
         }
 
@@ -571,8 +582,13 @@
                             }
                         }
                         addScore(tileCount * 10);
-                        checkAndBlast();
                         rackSlots[slotIndex] = null; placed = true;
+                        
+                        // 블록 안착 시 일단 그래픽 한 번 업데이트
+                        refreshBoardGraphics(false);
+                        
+                        // 안착 후 라인 폭발 및 최종 게임오버 판정 순차 실행
+                        checkAndBlast();
                     }
                 }
             }
@@ -580,7 +596,7 @@
             activeBlock.style.position = 'relative'; activeBlock.style.left = '0px'; activeBlock.style.top = '0px'; activeBlock.style.zIndex = '10'; activeBlock = null;
             if (placed) {
                 if (rackSlots.every(slot => slot === null)) spawnBlocks();
-                else { renderRack(); checkGameOver(); }
+                else { renderRack(); }
             } else { renderRack(); refreshBoardGraphics(false); }
         }
 
@@ -609,14 +625,657 @@
                     colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
 
                     requestAnimationFrame(() => {
-                        refreshBoardGraphics(true);
-                        checkGameOver();
+                        refreshBoardGraphics(true); // 보드판 깔끔하게 비우기 완료 후
+                        checkGameOver();            // 진짜 최종 남은 공간이 있는지 체크!!
                     });
                 }, 150);
             } else {
                 comboCount = 0;
                 requestAnimationFrame(() => {
                     refreshBoardGraphics(true);
+                    checkGameOver(); // 터질 게 없었더라도 이 시점에 최종 체크 진행
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>블록 블라스터 - 최종 수정판</title>
+    <style>
+        body {
+            background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; user-select: none; touch-action: none;
+            overflow: hidden;
+        }
+        
+        #homeScreen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #111216; z-index: 6000; gap: 20px;
+        }
+        #homeScreen h1 {
+            font-size: 3rem; color: #ffeb3b; margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255,235,59,0.5);
+        }
+        .main-btn {
+            background: #4caf50; color: #fff; border: none; padding: 16px 45px; 
+            font-size: 1.4rem; font-weight: bold; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(76,175,80,0.4); transition: 0.2s;
+        }
+        .beta-btn {
+            background: #9c27b0; box-shadow: 0 5px 15px rgba(156,39,176,0.4);
+        }
+        .main-btn:active { transform: scale(0.95); }
+
+        #uploadModal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 6500; flex-direction: column; align-items: center; justify-content: center;
+            gap: 20px;
+        }
+
+        /* 화면을 더 알차게 채우도록 상단 여백 조절 */
+        .score-container { 
+            display: flex; gap: 50px; margin-bottom: 10px; font-size: 1.4rem; font-weight: bold; 
+            transform: translate3d(0,0,0);
+        }
+        .score-box { text-align: center; }
+        .score-val { color: #ffeb3b; font-size: 2rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
+
+        /* 보드판 크기를 키워 화면에 더 꽉 차게 변경 */
+        #board {
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 4px;
+            padding: 12px; border: 5px solid #333; border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6); position: relative; 
+            width: 94vw; height: 94vw; max-width: 430px; max-height: 430px;
+            box-sizing: border-box;
+            background: #15161a;
+            transform: translate3d(0,0,0);
+        }
+        
+        .cell { 
+            background: #202124; border-radius: 6px; box-sizing: border-box; 
+            position: relative; overflow: hidden;
+            transform: translate3d(0,0,0);
+        }
+
+        /* 끊김 없는 모션을 위해 하드웨어 3D 가속 적용 */
+        .cell-img-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-repeat: no-repeat;
+            background-size: 800% 800%;
+            background-position: var(--pos-x, 0%) var(--pos-y, 0%);
+            opacity: 0;
+            will-change: opacity;
+            transform: translate3d(0,0,0);
+        }
+
+        .cell.glow-blast {
+            filter: blur(1px) brightness(1.8);
+            box-shadow: 0 0 15px currentColor, inset 0 0 8px currentColor;
+            z-index: 50;
+        }
+
+        .divider { width: 94vw; max-width: 430px; height: 1px; background: rgba(255,255,255,0.1); margin: 15px 0; }
+        
+        /* 하단 공간도 더 꽉 차고 큼직하게 최적화 */
+        #rack { 
+            display: flex; gap: 20px; justify-content: center; align-items: center; 
+            width: 94vw; max-width: 430px; height: 140px; position: relative; 
+            transform: translate3d(0,0,0);
+        }
+        
+        .block-container { display: grid; gap: 3px; position: relative; touch-action: none; z-index: 10; cursor: grab; transform: translate3d(0,0,0); }
+        .block-container.dragging { transform: scale(1.05) translate3d(0,0,0) !important; }
+        
+        /* 블록 타일 크기도 살짝 키움 */
+        .tile { border-radius: 5px; width: 36px; height: 36px; box-sizing: border-box; pointer-events: none; transform: translate3d(0,0,0); }
+
+        .particle {
+            position: fixed; width: 8px; height: 8px; border-radius: 2px;
+            pointer-events: none; z-index: 2000; animation: explode 0.4s ease-out forwards;
+        }
+        @keyframes explode {
+            0% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+            100% { transform: translate3d(var(--dx), var(--dy), 0) scale(0); opacity: 0; }
+        }
+
+        #comboText {
+            position: fixed; font-size: 2.5rem; font-weight: 900; color: #fff;
+            text-shadow: 0 0 15px #ff1744, 0 0 30px #ff1744; pointer-events: none;
+            z-index: 4000; opacity: 0; transform: scale(0.3) translate3d(0,0,0); text-align: center;
+        }
+        .combo-animate { animation: popText 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes popText {
+            0% { opacity: 0; transform: scale(0.3) rotate(-5deg) translate3d(0,0,0); }
+            30% { opacity: 1; transform: scale(1.1) rotate(5deg) translate3d(0,0,0); }
+            50% { transform: scale(1) rotate(0deg) translate3d(0,0,0); }
+            80% { opacity: 1; transform: translateY(-30px) scale(1) translate3d(0,0,0); }
+            100% { opacity: 0; transform: translateY(-50px) scale(0.8) translate3d(0,0,0); }
+        }
+
+        #gameOverModal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); z-index: 5000; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background: #22222b; padding: 35px 40px; border-radius: 12px; text-align: center;
+            border: 3px solid #ff5722; box-shadow: 0 0 20px rgba(255,87,34,0.4);
+        }
+        .modal-content h2 { color: #ff5722; margin: 0 0 10px 0; font-size: 2.2rem; }
+        .modal-content p { font-size: 1.1rem; margin: 10px 0 25px 0; color: #ccc; }
+        .modal-btn-group { display: flex; gap: 15px; justify-content: center; }
+        .modal-btn {
+            color: #fff; border: none; padding: 12px 24px; font-size: 1.1rem; font-weight: bold;
+            border-radius: 6px; cursor: pointer; transition: 0.2s; min-width: 110px;
+        }
+        .btn-replay { background: #ff5722; }
+        .btn-home { background: #555; }
+    </style>
+</head>
+<body>
+
+    <div id="homeScreen">
+        <h1>🧱 BLOCK BLAST</h1>
+        <button class="main-btn" onclick="startGame(false)">PLAY GAME</button>
+        <button class="main-btn beta-btn" onclick="openBetaModal()">🧪 β-test MODE</button>
+    </div>
+
+    <div id="uploadModal">
+        <h2>사진을 업로드하세요</h2>
+        <input type="file" id="imageInput" accept="image/*">
+        <button class="main-btn beta-btn" onclick="startBetaGame()">게임 시작</button>
+    </div>
+
+    <div id="comboText">GREAT!</div>
+
+    <div class="score-container">
+        <div class="score-box">SCORE<br><span id="currentScore" class="score-val">0</span></div>
+        <div class="score-box">BEST<br><span id="bestScore" class="score-val">0</span></div>
+    </div>
+    
+    <div id="board"></div>
+    <div class="divider"></div>
+    <div id="rack"></div>
+
+    <div id="gameOverModal">
+        <div class="modal-content">
+            <h2>GAME OVER</h2>
+            <p>더 이상 블록을 놓을 공간이 없습니다!</p>
+            <div class="modal-btn-group">
+                <button class="modal-btn btn-replay" onclick="resetGame()">REPLAY</button>
+                <button class="modal-btn btn-home" onclick="goHome()">HOME</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const rackEl = document.getElementById('rack');
+        const currentScoreEl = document.getElementById('currentScore');
+        const bestScoreEl = document.getElementById('bestScore');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const homeScreen = document.getElementById('homeScreen');
+        const uploadModal = document.getElementById('uploadModal');
+        const imageInput = document.getElementById('imageInput');
+        const comboTextEl = document.getElementById('comboText');
+
+        const ROWS = 8;
+        const COLS = 8;
+        let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        
+        let score = 0;
+        let bestScore = 0;
+        let activeBlock = null;
+        let rackSlots = [null, null, null];
+        let comboCount = 0;
+
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let startTileRowOffset = 0;
+        let startTileColOffset = 0;
+
+        let isBetaMode = false;
+        let uploadedImgUrl = "";
+        let currentLargestComponent = new Set(); 
+
+        let currentCellColor = '#202124';
+
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                
+                const imgLayer = document.createElement('div');
+                imgLayer.className = 'cell-img-layer';
+                
+                const posX = (c / (COLS - 1)) * 100;
+                const posY = (r / (ROWS - 1)) * 100;
+                imgLayer.style.setProperty('--pos-x', `${posX}%`);
+                imgLayer.style.setProperty('--pos-y', `${posY}%`);
+                
+                cell.appendChild(imgLayer);
+                boardEl.appendChild(cell);
+            }
+        }
+
+        const blockPool = [
+            { shape: [[1]], color: '#ffeb3b', rows: 1, cols: 1 }, 
+            { shape: [[1, 1]], color: '#ff9800', rows: 1, cols: 2 }, 
+            { shape: [[1], [1]], color: '#ff9800', rows: 2, cols: 1 }, 
+            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 }, 
+            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 }, 
+            { shape: [[1, 1, 1, 1]], color: '#03a9f4', rows: 1, cols: 4 }, 
+            { shape: [[1], [1], [1], [1]], color: '#03a9f4', rows: 4, cols: 1 }, 
+            { shape: [[1, 1], [1, 1]], color: '#4caf50', rows: 2, cols: 2 }, 
+            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#9c27b0', rows: 3, cols: 3 }, 
+            { shape: [[1, 0], [1, 0], [1, 1]], color: '#3f51b5', rows: 3, cols: 2 }, 
+            { shape: [[1, 1, 1], [1, 0, 0]], color: '#3f51b5', rows: 2, cols: 3 }, 
+            { shape: [[0, 1], [0, 1], [1, 1]], color: '#00bcd4', rows: 3, cols: 2 }, 
+            { shape: [[1, 1], [0, 1], [0, 1]], color: '#00bcd4', rows: 3, cols: 2 }, 
+            { shape: [[0, 1, 0], [1, 1, 1]], color: '#ec407a', rows: 2, cols: 3 }
+        ];
+
+        function openBetaModal() { uploadModal.style.display = 'flex'; }
+
+        function startBetaGame() {
+            const file = imageInput.files[0];
+            if (!file) { alert("사진을 선택해주세요!"); return; }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                uploadedImgUrl = e.target.result;
+                for(let i=0; i<ROWS*COLS; i++) {
+                    boardEl.children[i].querySelector('.cell-img-layer').style.backgroundImage = `url(${uploadedImgUrl})`;
+                }
+                uploadModal.style.display = 'none';
+                homeScreen.style.display = 'none';
+                startGame(true);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function startGame(betaMode = false) {
+            isBetaMode = betaMode;
+            currentLargestComponent.clear();
+            homeScreen.style.display = 'none';
+            if (isBetaMode) {
+                document.body.style.background = '#15161a';
+                boardEl.style.background = '#15161a';
+                boardEl.style.borderColor = '#9c27b0';
+                currentCellColor = '#222328';
+            }
+            resetGame();
+        }
+
+        function goHome() { gameOverModal.style.display = 'none'; homeScreen.style.display = 'flex'; }
+
+        function spawnBlocks() {
+            for (let i = 0; i < 3; i++) {
+                const randIndex = Math.floor(Math.random() * blockPool.length);
+                rackSlots[i] = blockPool[randIndex];
+            }
+            renderRack();
+            checkGameOver();
+        }
+
+        function renderRack() {
+            rackEl.innerHTML = '';
+            rackSlots.forEach((block, slotIndex) => {
+                if (!block) {
+                    const emptyBox = document.createElement('div');
+                    emptyBox.style.width = '90px';
+                    rackEl.appendChild(emptyBox);
+                    return;
+                }
+
+                const box = document.createElement('div');
+                box.className = 'block-container';
+                box.style.gridTemplateRows = `repeat(${block.rows}, 36px)`;
+                box.style.gridTemplateColumns = `repeat(${block.cols}, 36px)`;
+                box.dataset.slotIndex = slotIndex;
+                box.style.transform = 'scale(0.85)';
+                box.style.transformOrigin = 'center center';
+
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
+                        const tile = document.createElement('div');
+                        tile.className = 'tile';
+                        if (block.shape[r][c] === 1) {
+                            tile.style.backgroundColor = block.color;
+                            tile.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.3)';
+                        } else {
+                            tile.style.backgroundColor = 'transparent';
+                        }
+                        box.appendChild(tile);
+                    }
+                }
+
+                box.addEventListener('touchstart', handleTouchStart, { passive: false });
+                box.addEventListener('touchmove', handleTouchMove, { passive: false });
+                box.addEventListener('touchend', handleTouchEnd, { passive: false });
+                box.addEventListener('mousedown', handleMouseDown);
+
+                rackEl.appendChild(box);
+            });
+        }
+
+        function refreshBoardGraphics(runBFS = false) {
+            if (isBetaMode && runBFS) {
+                currentLargestComponent = findLargestConnectedComponent();
+            }
+
+            for (let r = 0; r < ROWS; r++) {
+                const rowOffset = r * COLS;
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[rowOffset + c];
+                    const imgLayer = cell.querySelector('.cell-img-layer');
+                    cell.classList.remove('glow-blast');
+                    
+                    if (boardState[r][c] !== 0) {
+                        const key = (r << 4) | c;
+                        if (isBetaMode && currentLargestComponent.has(key)) {
+                            cell.style.backgroundColor = 'transparent';
+                            imgLayer.style.opacity = '1';
+                        } else {
+                            imgLayer.style.opacity = '0';
+                            cell.style.backgroundColor = boardState[r][c];
+                        }
+                    } else {
+                        imgLayer.style.opacity = '0';
+                        cell.style.backgroundColor = currentCellColor;
+                    }
+                }
+            }
+        }
+
+        function findLargestConnectedComponent() {
+            let visited = new Uint8Array(128); 
+            let maxComponent = new Set();
+            const dr = [-1, 1, 0, 0];
+            const dc = [0, 0, -1, 1];
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const startKey = (r << 4) | c;
+                    if (boardState[r][c] !== 0 && !visited[startKey]) {
+                        let currentComponent = new Set();
+                        let queue = [startKey];
+                        visited[startKey] = 1;
+
+                        while (queue.length > 0) {
+                            const curr = queue.shift();
+                            currentComponent.add(curr);
+
+                            const currR = curr >> 4;
+                            const currC = curr & 15;
+
+                            for (let i = 0; i < 4; i++) {
+                                const nr = currR + dr[i];
+                                const nc = currC + dc[i];
+                                if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+                                    const nextKey = (nr << 4) | nc;
+                                    if (boardState[nr][nc] !== 0 && !visited[nextKey]) {
+                                        visited[nextKey] = 1;
+                                        queue.push(nextKey);
+                                    }
+                                }
+                            }
+                        }
+                        if (currentComponent.size > maxComponent.size) {
+                            maxComponent = currentComponent;
+                        }
+                    }
+                }
+            }
+            return maxComponent;
+        }
+
+        function getTargetBoardPos(clientX, clientY, block) {
+            const boardRect = boardEl.getBoundingClientRect();
+            if (clientX < boardRect.left || clientX > boardRect.right || clientY < boardRect.top || clientY > boardRect.bottom) {
+                return null;
+            }
+            const cellSize = boardRect.width / 8;
+            const c = Math.floor((clientX - boardRect.left) / cellSize);
+            const r = Math.floor((clientY - boardRect.top) / cellSize);
+            if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+                return { startRow: r - startTileRowOffset, startCol: c - startTileColOffset };
+            }
+            return null;
+        }
+
+        function updatePreview(clientX, clientY, slotIndex) {
+            refreshBoardGraphics(false); 
+            const block = rackSlots[slotIndex];
+            if (!block) return;
+
+            const pos = getTargetBoardPos(clientX, clientY, block);
+            if (!pos) return;
+            const { startRow, startCol } = pos;
+
+            if (canBlockFit(startRow, startCol, block)) {
+                let virtualBoard = boardState.map(row => [...row]);
+
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
+                        if (block.shape[r][c] === 1) {
+                            const vr = startRow + r;
+                            const vc = startCol + c;
+                            if (vr >= 0 && vr < ROWS && vc >= 0 && vc < COLS) {
+                                const cell = boardEl.children[vr * COLS + vc];
+                                cell.style.backgroundColor = block.color;
+                                cell.querySelector('.cell-img-layer').style.opacity = '0';
+                                virtualBoard[vr][vc] = block.color;
+                            }
+                        }
+                    }
+                }
+
+                let predictRows = [];
+                let predictCols = [];
+                for (let r = 0; r < ROWS; r++) {
+                    if (virtualBoard[r].every(cell => cell !== 0)) predictRows.push(r);
+                }
+                for (let c = 0; c < COLS; c++) {
+                    let colFull = true;
+                    for (let r = 0; r < ROWS; r++) {
+                        if (virtualBoard[r][c] === 0) { colFull = false; break; }
+                    }
+                    if (colFull) predictCols.push(c);
+                }
+
+                predictRows.forEach(r => {
+                    for(let c = 0; c < COLS; c++) boardEl.children[r * COLS + c].classList.add('glow-blast');
+                });
+                predictCols.forEach(c => {
+                    for(let r = 0; r < ROWS; r++) boardEl.children[r * COLS + c].classList.add('glow-blast');
+                });
+            }
+        }
+
+        function canBlockFit(startRow, startCol, block) {
+            if (startRow < 0 || startCol < 0 || startRow + block.rows > ROWS || startCol + block.cols > COLS) return false;
+            for (let r = 0; r < block.rows; r++) {
+                for (let c = 0; c < block.cols; c++) {
+                    if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) return false;
+                }
+            }
+            return true;
+        }
+
+        /* [핵심 버그 수정 완료] 게임오버 여부를 강제로 즉시 판단하지 않고, 터지고 비워진 뒤 호출받도록 보장 */
+        function checkGameOver() {
+            const availableBlocks = rackSlots.filter(b => b !== null);
+            if (availableBlocks.length === 0) return;
+            for (let block of availableBlocks) {
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        if (canBlockFit(r, c, block)) return; 
+                    }
+                }
+            }
+            gameOverModal.style.display = 'flex';
+        }
+
+        function resetGame() {
+            score = 0; comboCount = 0;
+            currentScoreEl.textContent = '0';
+            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            currentLargestComponent.clear();
+            refreshBoardGraphics(false);
+            gameOverModal.style.display = 'none';
+            spawnBlocks();
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault(); activeBlock = this; activeBlock.classList.add('dragging');
+            const touch = e.touches[0]; const rect = activeBlock.getBoundingClientRect();
+            dragOffsetX = rect.width / 2; dragOffsetY = rect.height / 2;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex); const block = rackSlots[slotIndex];
+            startTileColOffset = Math.floor((touch.clientX - rect.left) / (rect.width / block.cols));
+            startTileRowOffset = Math.floor((touch.clientY - rect.top) / (rect.height / block.rows));
+            activeBlock.style.position = 'fixed'; activeBlock.style.zIndex = '1000'; activeBlock.style.pointerEvents = 'none';
+            moveBlock(touch.clientX, touch.clientY);
+            updatePreview(touch.clientX, touch.clientY, slotIndex);
+        }
+
+        function handleTouchMove(e) {
+            if (!activeBlock) return; e.preventDefault(); const touch = e.touches[0];
+            moveBlock(touch.clientX, touch.clientY); updatePreview(touch.clientX, touch.clientY, activeBlock.dataset.slotIndex);
+        }
+
+        function handleTouchEnd(e) {
+            if (!activeBlock) return; const touch = e.changedTouches[0];
+            activeBlock.classList.remove('dragging'); activeBlock.style.transform = 'none'; activeBlock.style.pointerEvents = 'auto';
+            processPlacement(touch.clientX, touch.clientY);
+        }
+
+        function handleMouseDown(e) {
+            activeBlock = this; activeBlock.classList.add('dragging');
+            const rect = activeBlock.getBoundingClientRect();
+            dragOffsetX = rect.width / 2; dragOffsetY = rect.height / 2;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex); const block = rackSlots[slotIndex];
+            startTileColOffset = Math.floor((e.clientX - rect.left) / (rect.width / block.cols));
+            startTileRowOffset = Math.floor((e.clientY - rect.top) / (rect.height / block.rows));
+            activeBlock.style.position = 'fixed'; activeBlock.style.zIndex = '1000'; activeBlock.style.pointerEvents = 'none';
+            moveBlock(e.clientX, e.clientY);
+
+            const moveHandler = (ev) => {
+                if (!activeBlock) return; moveBlock(ev.clientX, ev.clientY); updatePreview(ev.clientX, ev.clientY, slotIndex);
+            };
+            const upHandler = (ev) => {
+                window.removeEventListener('mousemove', moveHandler); window.removeEventListener('mouseup', upHandler);
+                if (!activeBlock) return; activeBlock.classList.remove('dragging'); activeBlock.style.transform = 'none'; activeBlock.style.pointerEvents = 'auto';
+                processPlacement(ev.clientX, ev.clientY); 
+            };
+            window.addEventListener('mousemove', moveHandler); window.addEventListener('mouseup', upHandler);
+        }
+
+        function moveBlock(clientX, clientY) {
+            if (!activeBlock) return; activeBlock.style.left = `${clientX - dragOffsetX}px`; activeBlock.style.top = `${clientY - dragOffsetY}px`;
+        }
+
+        function createExplosion(cellEl, color) {
+            const rect = cellEl.getBoundingClientRect();
+            for (let i = 0; i < 6; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle'; 
+                particle.style.backgroundColor = color || '#ff1744';
+                particle.style.left = `${rect.left + rect.width / 2}px`; particle.style.top = `${rect.top + rect.height / 2}px`;
+                const angle = Math.random() * Math.PI * 2; const distance = Math.random() * 50 + 30;
+                particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`); particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+                document.body.appendChild(particle); setTimeout(() => { particle.remove(); }, 400);
+            }
+        }
+
+        function showComboReaction(combo) {
+            let text = "GREAT!"; let color = "#ffeb3b"; 
+            if (combo === 2) { text = "EXCELLENT!!"; color = "#00e676"; } 
+            else if (combo === 3) { text = "AMAZING!!!"; color = "#00b0ff"; } 
+            else if (combo >= 4) { text = "UNBELIEVABLE!!!!"; color = "#d500f9"; }
+            comboTextEl.textContent = text; comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
+            comboTextEl.className = ''; void comboTextEl.offsetWidth; comboTextEl.className = 'combo-animate';
+        }
+
+        function processPlacement(clientX, clientY) {
+            let placed = false; if (!activeBlock) return;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex); const block = rackSlots[slotIndex];
+
+            if (block) {
+                const pos = getTargetBoardPos(clientX, clientY, block);
+                if (pos) {
+                    const { startRow, startCol } = pos;
+                    if (canBlockFit(startRow, startCol, block)) {
+                        let tileCount = 0;
+                        for (let r = 0; r < block.rows; r++) {
+                            for (let c = 0; c < block.cols; c++) {
+                                if (block.shape[r][c] === 1) {
+                                    boardState[startRow + r][startCol + c] = block.color;
+                                    tileCount++;
+                                }
+                            }
+                        }
+                        addScore(tileCount * 10);
+                        rackSlots[slotIndex] = null; placed = true;
+                        
+                        // 블록 안착 시 일단 그래픽 한 번 업데이트
+                        refreshBoardGraphics(false);
+                        
+                        // 안착 후 라인 폭발 및 최종 게임오버 판정 순차 실행
+                        checkAndBlast();
+                    }
+                }
+            }
+
+            activeBlock.style.position = 'relative'; activeBlock.style.left = '0px'; activeBlock.style.top = '0px'; activeBlock.style.zIndex = '10'; activeBlock = null;
+            if (placed) {
+                if (rackSlots.every(slot => slot === null)) spawnBlocks();
+                else { renderRack(); }
+            } else { renderRack(); refreshBoardGraphics(false); }
+        }
+
+        function addScore(amount) {
+            score += amount; currentScoreEl.textContent = score;
+            if (score > bestScore) { bestScore = score; bestScoreEl.textContent = bestScore; }
+        }
+
+        function checkAndBlast() {
+            let rowsToBlast = []; let colsToBlast = [];
+            for (let r = 0; r < ROWS; r++) { if (boardState[r].every(cell => cell !== 0)) rowsToBlast.push(r); }
+            for (let c = 0; c < COLS; c++) {
+                let colFull = true;
+                for (let r = 0; r < ROWS; r++) { if (boardState[r][c] === 0) { colFull = false; break; } }
+                if (colFull) colsToBlast.push(c);
+            }
+
+            if (rowsToBlast.length + colsToBlast.length > 0) {
+                comboCount++; addScore((rowsToBlast.length + colsToBlast.length) * 150 * comboCount); showComboReaction(comboCount); 
+
+                setTimeout(() => {
+                    rowsToBlast.forEach(r => { for(let c=0; c<COLS; c++) createExplosion(boardEl.children[r*COLS+c], boardState[r][c]); });
+                    colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) { if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) createExplosion(boardEl.children[r*COLS+c], boardState[r][c]); } });
+
+                    rowsToBlast.forEach(r => boardState[r].fill(0));
+                    colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
+
+                    requestAnimationFrame(() => {
+                        refreshBoardGraphics(true); // 보드판 깔끔하게 비우기 완료 후
+                        checkGameOver();            // 진짜 최종 남은 공간이 있는지 체크!!
+                    });
+                }, 150);
+            } else {
+                comboCount = 0;
+                requestAnimationFrame(() => {
+                    refreshBoardGraphics(true);
+                    checkGameOver(); // 터질 게 없었더라도 이 시점에 최종 체크 진행
                 });
             }
         }
