@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 대화면 비율 유지 버전</title>
+    <title>블록 블라스터 - 버퍼링 제로 최종판</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
@@ -40,7 +40,6 @@
         .score-box { text-align: center; }
         .score-val { color: #ffeb3b; font-size: 1.8rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
 
-        /* [변경] 보드판 크기를 화면에 맞춰 큼직하게 확대 (최대 400px 폭) */
         #board {
             display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 3px;
             padding: 10px; border: 5px solid #333; border-radius: 16px;
@@ -49,13 +48,14 @@
             box-sizing: border-box;
         }
         
-        /* [변경] 사진 비율을 핸드폰 배경화면처럼 가운데 중심으로 채우기(cover) 설정 */
+        /* [버퍼링 해결 핵심] CSS 변수를 활용해 렌더링 연산을 브라우저단에서 미리 대기시킴 */
         .cell { 
             background: #202124; border-radius: 6px; box-sizing: border-box; 
             position: relative;
-            background-size: cover;
-            background-position: center;
             background-repeat: no-repeat;
+            background-size: 800% 800%;
+            background-position: var(--pos-x, 0%) var(--pos-y, 0%);
+            will-change: background-image, background-color; /* GPU 미리 가속 */
         }
 
         .cell.glow-blast {
@@ -65,14 +65,11 @@
         }
 
         .divider { width: 90vw; max-width: 400px; height: 1px; background: rgba(255,255,255,0.1); margin: 20px 0; }
-        
-        /* [변경] 하단 하치대 크기 보정 */
         #rack { display: flex; gap: 15px; justify-content: center; align-items: center; width: 90vw; max-width: 400px; height: 120px; position: relative; }
         
         .block-container { display: grid; gap: 2px; position: relative; touch-action: none; z-index: 10; cursor: grab; }
         .block-container.dragging { transform: scale(1.0) !important; }
         
-        /* 드래그하는 블록의 기본 타일 크기 */
         .tile { border-radius: 4px; width: 32px; height: 32px; box-sizing: border-box; pointer-events: none; }
 
         .particle {
@@ -121,7 +118,7 @@
 <body>
 
     <div id="homeScreen">
-        <h1>🧱 BLOCK BLAST</h1>
+        <h1>🧱 BLOCK BLAST!</h1>
         <button class="main-btn" onclick="startGame(false)">PLAY GAME</button>
         <button class="main-btn beta-btn" onclick="openBetaModal()">🧪 β-test MODE</button>
     </div>
@@ -184,35 +181,22 @@
         let uploadedImgUrl = "";
         let currentLargestComponent = new Set(); 
 
-        const themes = [
-            { bg: '#111216', border: '#383a40', cell: '#202124' }, 
-            { bg: '#060e26', border: '#00d2ff', cell: '#0b1b4f' }, 
-            { bg: '#0d2219', border: '#a3e635', cell: '#143829' }  
-        ];
         let currentCellColor = '#202124';
 
-        function applyRandomTheme() {
-            if (isBetaMode) {
-                document.body.style.background = '#15161a';
-                boardEl.style.background = '#15161a';
-                boardEl.style.borderColor = '#9c27b0';
-                currentCellColor = '#222328';
-            } else {
-                const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-                document.body.style.background = randomTheme.bg;
-                boardEl.style.background = randomTheme.bg;
-                boardEl.style.borderColor = randomTheme.border;
-                currentCellColor = randomTheme.cell;
-            }
-            refreshBoardGraphics(false);
-        }
-
+        // [최적화 초기화] 격자 배치와 좌표 캐싱을 처음에 한 번만 수행
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.dataset.row = r;
                 cell.dataset.col = c;
+                
+                // 미리 비율 계산값 매Marking하여 리플로우 원천 차단
+                const posX = (c / (COLS - 1)) * 100;
+                const posY = (r / (ROWS - 1)) * 100;
+                cell.style.setProperty('--pos-x', `${posX}%`);
+                cell.style.setProperty('--pos-y', `${posY}%`);
+                
                 boardEl.appendChild(cell);
             }
         }
@@ -253,7 +237,12 @@
             isBetaMode = betaMode;
             currentLargestComponent.clear();
             homeScreen.style.display = 'none';
-            applyRandomTheme();
+            if (isBetaMode) {
+                document.body.style.background = '#15161a';
+                boardEl.style.background = '#15161a';
+                boardEl.style.borderColor = '#9c27b0';
+                currentCellColor = '#222328';
+            }
             resetGame();
         }
 
@@ -309,11 +298,7 @@
             });
         }
 
-        function clearPreview() {
-            refreshBoardGraphics(false); 
-        }
-
-        // [변경 포인트] 개별 조각 분할이 아닌 cover 방식을 사용하므로 한 덩어리로 자연스럽게 출력됨
+        // [버퍼링 해결의 핵심 매커니즘] 불필요한 스타일 스트링 조작 완전 배제
         function refreshBoardGraphics(runBFS = false) {
             if (isBetaMode && runBFS) {
                 currentLargestComponent = findLargestConnectedComponent();
@@ -328,7 +313,10 @@
                     if (boardState[r][c] !== 0) {
                         const key = (r << 4) | c;
                         if (isBetaMode && currentLargestComponent.has(key)) {
-                            cell.style.backgroundImage = `url(${uploadedImgUrl})`;
+                            // 단순 경로 주입으로 변경하여 렉(딜레이) 현상 완전 제거
+                            if (cell.style.backgroundImage !== `url("${uploadedImgUrl}")`) {
+                                cell.style.backgroundImage = `url(${uploadedImgUrl})`;
+                            }
                             cell.style.backgroundColor = 'transparent';
                         } else {
                             cell.style.backgroundImage = 'none';
@@ -385,27 +373,19 @@
         }
 
         function getTargetBoardPos(clientX, clientY, block) {
-            const hoveredEl = document.elementFromPoint(clientX, clientY);
-            if (!hoveredEl || !hoveredEl.classList.contains('cell')) {
-                const boardRect = boardEl.getBoundingClientRect();
-                if (clientX < boardRect.left || clientX > boardRect.right || clientY < boardRect.top || clientY > boardRect.bottom) {
-                    return null;
-                }
-                const cellSize = boardRect.width / 8;
-                const c = Math.floor((clientX - boardRect.left) / cellSize);
-                const r = Math.floor((clientY - boardRect.top) / cellSize);
-                if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
-                    return { startRow: r - startTileRowOffset, startCol: c - startTileColOffset };
-                }
+            const boardRect = boardEl.getBoundingClientRect();
+            if (clientX < boardRect.left || clientX > boardRect.right || clientY < boardRect.top || clientY > boardRect.bottom) {
                 return null;
             }
-            return { 
-                startRow: parseInt(hoveredEl.dataset.row) - startTileRowOffset, 
-                startCol: parseInt(hoveredEl.dataset.col) - startTileColOffset 
-            };
+            const cellSize = boardRect.width / 8;
+            const c = Math.floor((clientX - boardRect.left) / cellSize);
+            const r = Math.floor((clientY - boardRect.top) / cellSize);
+            if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+                return { startRow: r - startTileRowOffset, startCol: c - startTileColOffset };
+            }
+            return null;
         }
 
-        // 반응형 보드판에 대응하도록 동적 위치 탐색 인덱스 부여 처리
         function updatePreview(clientX, clientY, slotIndex) {
             refreshBoardGraphics(false); 
             const block = rackSlots[slotIndex];
@@ -625,12 +605,6 @@
                     refreshBoardGraphics(true);
                 });
             }
-        }
-        
-        // 데이터셋 마킹 작업 추가
-        for(let i=0; i<ROWS*COLS; i++) {
-            boardEl.children[i].dataset.row = Math.floor(i / COLS);
-            boardEl.children[i].dataset.col = i % COLS;
         }
     </script>
 </body>
