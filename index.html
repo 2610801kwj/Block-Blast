@@ -3,16 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터</title>
+    <title>블록 블라스터 마스터피스</title>
     <style>
+        /* 기본 테마 컬러 변수 설정 */
+        :root {
+            --bg-color: #141419;
+            --board-border: #444;
+            --cell-bg: #25252e;
+            --theme-glow: 0 0 15px rgba(255,235,59,0.4);
+        }
+
         body {
-            background: #141419; color: #fff; font-family: 'Malgun Gothic', sans-serif;
+            background: var(--bg-color); color: #fff; font-family: 'Segoe UI', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; margin: 0; user-select: none;
-            touch-action: none;
+            height: 100vh; margin: 0; user-select: none; touch-action: none;
+            transition: background 0.5s ease;
         }
         
-        /* [추가] 시작 홈 화면 디자인 */
         #homeScreen {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -24,35 +31,39 @@
             animation: pulse 2s infinite alternate;
         }
         .main-btn {
-            background: #4caf50; color: #fff; border: none;
-            padding: 16px 45px; font-size: 1.4rem; font-weight: bold;
-            border-radius: 8px; cursor: pointer; box-shadow: 0 5px 15px rgba(76,175,80,0.4);
-            transition: 0.2s;
+            background: #4caf50; color: #fff; border: none; padding: 16px 45px; 
+            font-size: 1.4rem; font-weight: bold; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(76,175,80,0.4); transition: 0.2s;
         }
-        .main-btn:active { transform: scale(0.95); background: #43a047; }
+        .main-btn:active { transform: scale(0.95); }
 
-        @keyframes pulse {
-            0% { transform: scale(1); text-shadow: 0 0 10px rgba(255,235,59,0.3); }
-            100% { transform: scale(1.05); text-shadow: 0 0 25px rgba(255,235,59,0.6); }
-        }
+        @keyframes pulse { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
 
-        /* 인게임 점수판 */
-        .score-container {
-            display: flex; gap: 40px; margin-bottom: 10px; font-size: 1.2rem; font-weight: bold;
-        }
+        .score-container { display: flex; gap: 40px; margin-bottom: 10px; font-size: 1.2rem; font-weight: bold; }
         .score-box { text-align: center; }
-        .score-val { color: #ffeb3b; font-size: 1.6rem; text-shadow: 0 0 8px rgba(255,235,59,0.4); }
+        .score-val { color: #ffeb3b; font-size: 1.6rem; text-shadow: var(--theme-glow); }
 
         /* 8x8 메인 게임판 */
         #board {
             display: grid; grid-template-columns: repeat(8, 42px); grid-template-rows: repeat(8, 42px); gap: 2px;
-            background: #141419; padding: 6px; border: 4px solid #444; border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative;
+            background: var(--bg-color); padding: 6px; border: 4px solid var(--board-border); border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative; transition: all 0.5s ease;
         }
-        .cell { background: #25252e; border-radius: 4px; box-sizing: border-box; position: relative; }
+        .cell { 
+            background: var(--cell-bg); border-radius: 4px; box-sizing: border-box; 
+            position: relative; transition: background 0.1s ease;
+        }
+
+        /* [효과 추가] 줄 삭제 시 네온 빛 및 블러 필터 작동 */
+        .cell.glow-blast {
+            filter: blur(1px) brightness(1.8);
+            box-shadow: 0 0 20px currentColor, inset 0 0 10px currentColor;
+            z-index: 50;
+            transition: all 0.2s ease-in-out;
+        }
+
         .divider { width: 350px; height: 1px; background: #333; margin: 25px 0; }
         #rack { display: flex; gap: 30px; justify-content: center; align-items: center; width: 350px; height: 100px; position: relative; }
-        
         .block-container { display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10; }
         .tile { border-radius: 3px; width: 26px; height: 26px; }
 
@@ -66,7 +77,23 @@
             100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
         }
 
-        /* 게임 오버 모달 팝업 및 버튼들 */
+        /* [추가] 콤보 발생 시 중앙에 튀어나오는 영어 문구 컴포넌트 */
+        #comboText {
+            position: fixed; font-size: 2.5rem; font-weight: 900; color: #fff;
+            text-shadow: 0 0 15px #ff1744, 0 0 30px #ff1744; pointer-events: none;
+            z-index: 4000; opacity: 0; transform: scale(0.3); text-align: center;
+        }
+        .combo-animate { animation: popText 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes popText {
+            0% { opacity: 0; transform: scale(0.3) rotate(-5deg); }
+            30% { opacity: 1; transform: scale(1.1) rotate(5deg); }
+            50% { transform: scale(1) rotate(0deg); }
+            80% { opacity: 1; transform: translateY(-30px) scale(1); }
+            100% { opacity: 0; transform: translateY(-50px) scale(0.8); }
+        }
+
+        /* 게임 오버 모달 */
         #gameOverModal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85); z-index: 5000; flex-direction: column; align-items: center; justify-content: center;
@@ -75,19 +102,15 @@
             background: #22222b; padding: 35px 40px; border-radius: 12px; text-align: center;
             border: 3px solid #ff5722; box-shadow: 0 0 20px rgba(255,87,34,0.4);
         }
-        .modal-content h2 { color: #ff5722; margin: 0 0 10px 0; font-size: 2.2rem; text-shadow: 0 0 10px rgba(255,87,34,0.3); }
+        .modal-content h2 { color: #ff5722; margin: 0 0 10px 0; font-size: 2.2rem; }
         .modal-content p { font-size: 1.1rem; margin: 10px 0 25px 0; color: #ccc; }
-        
-        /* [수정] 게임오버 버튼 그룹 레이아웃 */
         .modal-btn-group { display: flex; gap: 15px; justify-content: center; }
         .modal-btn {
             color: #fff; border: none; padding: 12px 24px; font-size: 1.1rem; font-weight: bold;
             border-radius: 6px; cursor: pointer; transition: 0.2s; min-width: 110px;
         }
         .btn-replay { background: #ff5722; }
-        .btn-replay:active { background: #e64a19; transform: scale(0.95); }
         .btn-home { background: #555; }
-        .btn-home:active { background: #444; transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -96,6 +119,8 @@
         <h1>🧱 BLOCK BLAST</h1>
         <button class="main-btn" onclick="startGame()">PLAY GAME</button>
     </div>
+
+    <div id="comboText">GREAT!</div>
 
     <div class="score-container">
         <div class="score-box">SCORE<br><span id="currentScore" class="score-val">0</span></div>
@@ -124,6 +149,7 @@
         const bestScoreEl = document.getElementById('bestScore');
         const gameOverModal = document.getElementById('gameOverModal');
         const homeScreen = document.getElementById('homeScreen');
+        const comboTextEl = document.getElementById('comboText');
 
         const ROWS = 8, COLS = 8;
         let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -132,6 +158,32 @@
         let bestScore = 0;
         let activeBlock = null;
         let rackSlots = [null, null, null];
+        let comboCount = 0; // 연속 콤보 카운터
+
+        // 다양한 무작위 비주얼 테마 정의
+        const themes = [
+            { bg: '#141419', border: '#444', cell: '#25252e', glow: '0 0 15px rgba(255,235,59,0.4)' }, // 오리지널
+            { bg: '#0b0f19', border: '#1e293b', cell: '#1e293b', glow: '0 0 15px rgba(56,189,248,0.5)' }, // 사이버 펑크 블루
+            { bg: '#0a1410', border: '#102a1e', cell: '#143527', glow: '0 0 15px rgba(52,211,153,0.5)' }  // 에메랄드 시티
+        ];
+
+        // 무작위로 테마 변경 적용하는 함수
+        function applyRandomTheme() {
+            const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+            document.documentElement.style.setProperty('--bg-color', randomTheme.bg);
+            document.documentElement.style.setProperty('--board-border', randomTheme.border);
+            document.documentElement.style.setProperty('--cell-bg', randomTheme.cell);
+            document.documentElement.style.setProperty('--theme-glow', randomTheme.glow);
+            
+            // 빈 공간 컬러 즉시 업데이트
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (boardState[r][c] === 0) {
+                        boardEl.children[r * COLS + c].style.backgroundColor = randomTheme.cell;
+                    }
+                }
+            }
+        }
 
         // 격자판 생성
         for (let r = 0; r < ROWS; r++) {
@@ -156,13 +208,12 @@
             { shape: [[1, 1, 1, 1]], color: '#3f51b5', rows: 1, cols: 4 }
         ];
 
-        // [추가] 홈에서 플레이 버튼 눌렀을 때 진입 처리 함수
         function startGame() {
             homeScreen.style.display = 'none';
-            resetGame(); // 판을 깨끗이 초기화하고 블록 생성
+            applyRandomTheme();
+            resetGame();
         }
 
-        // [추가] 게임오버 창에서 홈으로 나가는 기능
         function goHome() {
             gameOverModal.style.display = 'none';
             homeScreen.style.display = 'flex';
@@ -216,11 +267,12 @@
         }
 
         function clearPreview() {
+            const currentCellBg = getComputedStyle(document.documentElement).getPropertyValue('--cell-bg').trim();
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
                     const cell = boardEl.children[r * COLS + c];
                     if (boardState[r][c] === 0) {
-                        cell.style.backgroundColor = '#25252e';
+                        cell.style.backgroundColor = currentCellBg;
                         cell.style.opacity = '1';
                     }
                 }
@@ -278,109 +330,125 @@
 
         function resetGame() {
             score = 0;
+            comboCount = 0;
             currentScoreEl.textContent = '0';
             boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
             
+            const currentCellBg = getComputedStyle(document.documentElement).getPropertyValue('--cell-bg').trim();
             for (let i = 0; i < boardEl.children.length; i++) {
-                boardEl.children[i].style.backgroundColor = '#25252e';
+                boardEl.children[i].style.backgroundColor = currentCellBg;
                 boardEl.children[i].style.opacity = '1';
+                boardEl.children[i].className = 'cell';
             }
             
             gameOverModal.style.display = 'none';
             spawnBlocks();
         }
 
-        const TOUCH_OFFSET_Y = -40;
-
+        // 터치/마우스 오프셋 핸들러 통합
         function handleTouchStart(e) {
-            e.preventDefault();
-            activeBlock = this;
-            const touch = e.touches[0];
-            
-            activeBlock.style.position = 'fixed';
-            activeBlock.style.zIndex = '1000';
-            activeBlock.style.transform = 'scale(1.2) translateY(-40px)';
-            activeBlock.style.pointerEvents = 'none';
-
+            e.preventDefault(); activeBlock = this; const touch = e.touches[0];
+            activeBlock.style.position = 'fixed'; activeBlock.style.zIndex = '1000';
+            activeBlock.style.transform = 'scale(1.2) translateY(-40px)'; activeBlock.style.pointerEvents = 'none';
             moveBlock(touch.clientX, touch.clientY);
             updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
         }
-
         function handleTouchMove(e) {
-            if (!activeBlock) return;
-            e.preventDefault();
-            const touch = e.touches[0];
-            moveBlock(touch.clientX, touch.clientY);
-            updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
+            if (!activeBlock) return; e.preventDefault(); const touch = e.touches[0];
+            moveBlock(touch.clientX, touch.clientY); updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
         }
-
         function handleTouchEnd(e) {
-            if (!activeBlock) return;
-            const touch = e.changedTouches[0];
+            if (!activeBlock) return; const touch = e.changedTouches[0];
             const target = document.elementFromPoint(touch.clientX, touch.clientY - 40);
-            
-            clearPreview();
-            activeBlock.style.transform = 'none';
-            activeBlock.style.pointerEvents = 'auto';
-            
+            clearPreview(); activeBlock.style.transform = 'none'; activeBlock.style.pointerEvents = 'auto';
             processPlacement(target);
         }
-
         function moveBlock(clientX, clientY) {
             const rect = activeBlock.getBoundingClientRect();
-            activeBlock.style.left = `${clientX - rect.width / 2}px`;
-            activeBlock.style.top = `${clientY - rect.height / 2 - 40}px`;
+            activeBlock.style.left = `${clientX - rect.width / 2}px`; activeBlock.style.top = `${clientY - rect.height / 2 - 40}px`;
         }
 
         let mouseDragBlock = null;
         function handleMouseDown(e) {
-            mouseDragBlock = this;
-            mouseDragBlock.style.position = 'fixed';
-            mouseDragBlock.style.zIndex = '1000';
-            mouseDragBlock.style.pointerEvents = 'none';
-            
+            mouseDragBlock = this; mouseDragBlock.style.position = 'fixed'; mouseDragBlock.style.zIndex = '1000'; mouseDragBlock.style.pointerEvents = 'none';
             const moveHandler = (ev) => {
                 const rect = mouseDragBlock.getBoundingClientRect();
-                mouseDragBlock.style.left = `${ev.clientX - rect.width/2}px`;
-                mouseDragBlock.style.top = `${ev.clientY - rect.height/2}px`;
+                mouseDragBlock.style.left = `${ev.clientX - rect.width/2}px`; mouseDragBlock.style.top = `${ev.clientY - rect.height/2}px`;
                 updatePreview(ev.clientX, ev.clientY, mouseDragBlock.dataset.slotIndex);
             };
-
             const upHandler = (ev) => {
-                window.removeEventListener('mousemove', moveHandler);
-                window.removeEventListener('mouseup', upHandler);
-                const target = document.elementFromPoint(ev.clientX, ev.clientY);
-                clearPreview();
-                activeBlock = mouseDragBlock;
-                activeBlock.style.pointerEvents = 'auto';
-                processPlacement(target);
-                mouseDragBlock = null;
+                window.removeEventListener('mousemove', moveHandler); window.removeEventListener('mouseup', upHandler);
+                const target = document.elementFromPoint(ev.clientX, ev.clientY); clearPreview();
+                activeBlock = mouseDragBlock; activeBlock.style.pointerEvents = 'auto';
+                processPlacement(target); mouseDragBlock = null;
             };
-
-            window.addEventListener('mousemove', moveHandler);
-            window.addEventListener('mouseup', upHandler);
+            window.addEventListener('mousemove', moveHandler); window.addEventListener('mouseup', upHandler);
         }
 
         function createExplosion(cellEl, color) {
             const rect = cellEl.getBoundingClientRect();
             for (let i = 0; i < 6; i++) {
                 const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.backgroundColor = color;
-                particle.style.left = `${rect.left + rect.width / 2}px`;
-                particle.style.top = `${rect.top + rect.height / 2}px`;
-                
-                const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * 50 + 30; 
-                const dx = Math.cos(angle) * distance;
-                const dy = Math.sin(angle) * distance;
-                
-                particle.style.setProperty('--dx', `${dx}px`);
-                particle.style.setProperty('--dy', `${dy}px`);
-                
-                document.body.appendChild(particle);
-                setTimeout(() => particle.remove(), 500);
+                particle.className = 'particle'; particle.style.backgroundColor = color;
+                particle.style.left = `${rect.left + rect.width / 2}px`; particle.style.top = `${rect.top + rect.height / 2}px`;
+                const angle = Math.random() * Math.PI * 2; const distance = Math.random() * 50 + 30;
+                particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+                particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+                document.body.appendChild(particle); setTimeout(() => particle.remove(), 500);
             }
+        }
+
+        // [추가] 연속 콤보 영단어 문구 연출 팝업 시스템
+        function showComboReaction(combo) {
+            let text = "GREAT!";
+            let color = "#ffeb3b"; 
+            if (combo === 2) { text = "EXCELLENT!!"; color = "#00e676"; }
+            else if (combo === 3) { text = "AMAZING!!!"; color = "#00b0ff"; }
+            else if (combo >= 4) { text = "UNBELIEVABLE!!!!"; color = "#d500f9"; }
+
+            comboTextEl.textContent = text;
+            comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
+            
+            comboTextEl.className = ''; // 애니메이션 초기화용 클래스 제거
+            void comboTextEl.offsetWidth; // 브라우저 리플로우 강제 트리거
+            comboTextEl.className = 'combo-animate';
+        }
+
+        // [추가] 올 클리어 시 한줄씩 초고속으로 다 채웠다 터뜨린 후 테마 전환
+        async function playAllClearAnimation() {
+            const colors = ['#e91e63', '#00bcd4', '#ffeb3b', '#4caf50', '#ff9800', '#9c27b0', '#03a9f4', '#3f51b5'];
+            
+            // 1단계: 위에서 아래로 한 줄씩 초고속으로 전격 충전되는 시각 연출
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[r * COLS + c];
+                    cell.style.backgroundColor = colors[r];
+                    cell.style.color = colors[r];
+                    cell.classList.add('glow-blast');
+                }
+                await new Promise(resolve => setTimeout(resolve, 50)); // 각 행별 충전 딜레이 속도
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 150));
+
+            // 2단계: 사방 파티클 터뜨리며 한 방에 싹 클리어 및 무작위 신규 테마 장착
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[r * COLS + c];
+                    createExplosion(cell, colors[r]);
+                }
+            }
+
+            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            applyRandomTheme(); // 테마 교체 함수 호출!
+            
+            // 전격 글로우 스타일 클래스 제거
+            for (let i = 0; i < boardEl.children.length; i++) {
+                boardEl.children[i].classList.remove('glow-blast');
+            }
+            
+            addScore(1000); // 올클리어 특수 보너스 포인트 지급
+            showComboReaction(4); // 문구 이펙트 호출
         }
 
         function processPlacement(target) {
@@ -413,11 +481,7 @@
                 }
             }
 
-            activeBlock.style.position = 'relative';
-            activeBlock.style.left = '0px';
-            activeBlock.style.top = '0px';
-            activeBlock.style.zIndex = '10';
-            activeBlock = null;
+            activeBlock.style.position = 'relative'; activeBlock.style.left = '0px'; activeBlock.style.top = '0px'; activeBlock.style.zIndex = '10'; activeBlock = null;
 
             if (placed) {
                 if (rackSlots.every(slot => slot === null)) {
@@ -432,14 +496,11 @@
         }
 
         function addScore(amount) {
-            score += amount;
-            currentScoreEl.textContent = score;
-            if (score > bestScore) {
-                bestScore = score;
-                bestScoreEl.textContent = bestScore;
-            }
+            score += amount; currentScoreEl.textContent = score;
+            if (score > bestScore) { bestScore = score; bestScoreEl.textContent = bestScore; }
         }
 
+        // [수정] 네온 글로우(빛남) 및 블러 연출이 접목된 코어 소거 로직
         function checkAndBlast() {
             let rowsToBlast = [];
             let colsToBlast = [];
@@ -456,40 +517,673 @@
             }
 
             const linesBlasted = rowsToBlast.length + colsToBlast.length;
+            
             if (linesBlasted > 0) {
-                addScore(linesBlasted * 150);
-            }
+                comboCount++; // 줄 소거에 성공했으므로 콤보 스택 누적
+                addScore(linesBlasted * 150 * comboCount); // 콤보 가중치 보너스 스코어 지급
+                showComboReaction(comboCount); // 영단어 이펙트 활성화
 
-            rowsToBlast.forEach(r => {
-                for(let c = 0; c < COLS; c++) {
-                    const cellEl = boardEl.children[r * COLS + c];
-                    createExplosion(cellEl, boardState[r][c]);
-                }
-            });
+                // 지워지는 칸들에 빛남(glow-blast) 스타일 클래스 즉시 주입
+                rowsToBlast.forEach(r => {
+                    for(let c = 0; c < COLS; c++) {
+                        const cell = boardEl.children[r * COLS + c];
+                        cell.style.color = boardState[r][c];
+                        cell.classList.add('glow-blast');
+                    }
+                });
+                colsToBlast.forEach(c => {
+                    for(let r = 0; r < ROWS; r++) {
+                        const cell = boardEl.children[r * COLS + c];
+                        cell.style.color = boardState[r][c];
+                        cell.classList.add('glow-blast');
+                    }
+                });
 
-            colsToBlast.forEach(c => {
-                for (let r = 0; r < ROWS; r++) {
-                    if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) {
-                        const cellEl = boardEl.children[r * COLS + c];
-                        createExplosion(cellEl, boardState[r][c]);
+                // 번쩍이는 글로우 효과를 충분히 감상할 수 있도록 시간차(200ms)를 두고 폭파 처리
+                setTimeout(() => {
+                    rowsToBlast.forEach(r => {
+                        for(let c = 0; c < COLS; c++) {
+                            createExplosion(boardEl.children[r * COLS + c], boardState[r][c]);
+                        }
+                    });
+                    colsToBlast.forEach(c => {
+                        for (let r = 0; r < ROWS; r++) {
+                            if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) {
+                                createExplosion(boardEl.children[r * COLS + c], boardState[r][c]);
+                            }
+                        }
+                    });
+
+                    // 색상 클리어 및 초기화 복원
+                    const currentCellBg = getComputedStyle(document.documentElement).getPropertyValue('--cell-bg').trim();
+                    rowsToBlast.forEach(r => {
+                        boardState[r].fill(0);
+                        for(let c=0; c<COLS; c++) {
+                            const cell = boardEl.children[r * COLS + c];
+                            cell.style.backgroundColor = currentCellBg;
+                            cell.classList.remove('glow-blast');
+                        }
+                    });
+                    colsToBlast.forEach(c => {
+                        for (let r = 0; r < ROWS; r++) {
+                            boardState[r][c] = 0;
+  <!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>블록 블라스터 마스터피스</title>
+    <style>
+        /* 기본 테마 컬러 변수 설정 */
+        :root {
+            --bg-color: #141419;
+            --board-border: #444;
+            --cell-bg: #25252e;
+            --theme-glow: 0 0 15px rgba(255,235,59,0.4);
+        }
+
+        body {
+            background: var(--bg-color); color: #fff; font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; user-select: none; touch-action: none;
+            transition: background 0.5s ease;
+        }
+        
+        #homeScreen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #141419; z-index: 6000;
+        }
+        #homeScreen h1 {
+            font-size: 3rem; color: #ffeb3b; margin-bottom: 40px;
+            text-shadow: 0 0 20px rgba(255,235,59,0.5);
+            animation: pulse 2s infinite alternate;
+        }
+        .main-btn {
+            background: #4caf50; color: #fff; border: none; padding: 16px 45px; 
+            font-size: 1.4rem; font-weight: bold; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(76,175,80,0.4); transition: 0.2s;
+        }
+        .main-btn:active { transform: scale(0.95); }
+
+        @keyframes pulse { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
+
+        .score-container { display: flex; gap: 40px; margin-bottom: 10px; font-size: 1.2rem; font-weight: bold; }
+        .score-box { text-align: center; }
+        .score-val { color: #ffeb3b; font-size: 1.6rem; text-shadow: var(--theme-glow); }
+
+        /* 8x8 메인 게임판 */
+        #board {
+            display: grid; grid-template-columns: repeat(8, 42px); grid-template-rows: repeat(8, 42px); gap: 2px;
+            background: var(--bg-color); padding: 6px; border: 4px solid var(--board-border); border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative; transition: all 0.5s ease;
+        }
+        .cell { 
+            background: var(--cell-bg); border-radius: 4px; box-sizing: border-box; 
+            position: relative; transition: background 0.1s ease;
+        }
+
+        /* [효과 추가] 줄 삭제 시 네온 빛 및 블러 필터 작동 */
+        .cell.glow-blast {
+            filter: blur(1px) brightness(1.8);
+            box-shadow: 0 0 20px currentColor, inset 0 0 10px currentColor;
+            z-index: 50;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .divider { width: 350px; height: 1px; background: #333; margin: 25px 0; }
+        #rack { display: flex; gap: 30px; justify-content: center; align-items: center; width: 350px; height: 100px; position: relative; }
+        .block-container { display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10; }
+        .tile { border-radius: 3px; width: 26px; height: 26px; }
+
+        /* 이펙트 파티클 */
+        .particle {
+            position: fixed; width: 8px; height: 8px; border-radius: 2px;
+            pointer-events: none; z-index: 2000; animation: explode 0.5s ease-out forwards;
+        }
+        @keyframes explode {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+        }
+
+        /* [추가] 콤보 발생 시 중앙에 튀어나오는 영어 문구 컴포넌트 */
+        #comboText {
+            position: fixed; font-size: 2.5rem; font-weight: 900; color: #fff;
+            text-shadow: 0 0 15px #ff1744, 0 0 30px #ff1744; pointer-events: none;
+            z-index: 4000; opacity: 0; transform: scale(0.3); text-align: center;
+        }
+        .combo-animate { animation: popText 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes popText {
+            0% { opacity: 0; transform: scale(0.3) rotate(-5deg); }
+            30% { opacity: 1; transform: scale(1.1) rotate(5deg); }
+            50% { transform: scale(1) rotate(0deg); }
+            80% { opacity: 1; transform: translateY(-30px) scale(1); }
+            100% { opacity: 0; transform: translateY(-50px) scale(0.8); }
+        }
+
+        /* 게임 오버 모달 */
+        #gameOverModal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); z-index: 5000; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background: #22222b; padding: 35px 40px; border-radius: 12px; text-align: center;
+            border: 3px solid #ff5722; box-shadow: 0 0 20px rgba(255,87,34,0.4);
+        }
+        .modal-content h2 { color: #ff5722; margin: 0 0 10px 0; font-size: 2.2rem; }
+        .modal-content p { font-size: 1.1rem; margin: 10px 0 25px 0; color: #ccc; }
+        .modal-btn-group { display: flex; gap: 15px; justify-content: center; }
+        .modal-btn {
+            color: #fff; border: none; padding: 12px 24px; font-size: 1.1rem; font-weight: bold;
+            border-radius: 6px; cursor: pointer; transition: 0.2s; min-width: 110px;
+        }
+        .btn-replay { background: #ff5722; }
+        .btn-home { background: #555; }
+    </style>
+</head>
+<body>
+
+    <div id="homeScreen">
+        <h1>🧱 BLOCK BLAST</h1>
+        <button class="main-btn" onclick="startGame()">PLAY GAME</button>
+    </div>
+
+    <div id="comboText">GREAT!</div>
+
+    <div class="score-container">
+        <div class="score-box">SCORE<br><span id="currentScore" class="score-val">0</span></div>
+        <div class="score-box">BEST<br><span id="bestScore" class="score-val">0</span></div>
+    </div>
+    
+    <div id="board"></div>
+    <div class="divider"></div>
+    <div id="rack"></div>
+
+    <div id="gameOverModal">
+        <div class="modal-content">
+            <h2>GAME OVER</h2>
+            <p>더 이상 블록을 놓을 공간이 없습니다!</p>
+            <div class="modal-btn-group">
+                <button class="modal-btn btn-replay" onclick="resetGame()">REPLAY</button>
+                <button class="modal-btn btn-home" onclick="goHome()">HOME</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const rackEl = document.getElementById('rack');
+        const currentScoreEl = document.getElementById('currentScore');
+        const bestScoreEl = document.getElementById('bestScore');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const homeScreen = document.getElementById('homeScreen');
+        const comboTextEl = document.getElementById('comboText');
+
+        const ROWS = 8, COLS = 8;
+        let boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        
+        let score = 0;
+        let bestScore = 0;
+        let activeBlock = null;
+        let rackSlots = [null, null, null];
+        let comboCount = 0; // 연속 콤보 카운터
+
+        // 다양한 무작위 비주얼 테마 정의
+        const themes = [
+            { bg: '#141419', border: '#444', cell: '#25252e', glow: '0 0 15px rgba(255,235,59,0.4)' }, // 오리지널
+            { bg: '#0b0f19', border: '#1e293b', cell: '#1e293b', glow: '0 0 15px rgba(56,189,248,0.5)' }, // 사이버 펑크 블루
+            { bg: '#0a1410', border: '#102a1e', cell: '#143527', glow: '0 0 15px rgba(52,211,153,0.5)' }  // 에메랄드 시티
+        ];
+
+        // 무작위로 테마 변경 적용하는 함수
+        function applyRandomTheme() {
+            const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+            document.documentElement.style.setProperty('--bg-color', randomTheme.bg);
+            document.documentElement.style.setProperty('--board-border', randomTheme.border);
+            document.documentElement.style.setProperty('--cell-bg', randomTheme.cell);
+            document.documentElement.style.setProperty('--theme-glow', randomTheme.glow);
+            
+            // 빈 공간 컬러 즉시 업데이트
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (boardState[r][c] === 0) {
+                        boardEl.children[r * COLS + c].style.backgroundColor = randomTheme.cell;
                     }
                 }
-            });
+            }
+        }
 
-            rowsToBlast.forEach(r => {
-                boardState[r].fill(0);
-                for(let c=0; c<COLS; c++) {
-                    boardEl.children[r * COLS + c].style.backgroundColor = '#25252e';
-                    boardEl.children[r * COLS + c].style.opacity = '1';
+        // 격자판 생성
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                boardEl.appendChild(cell);
+            }
+        }
+
+        const blockPool = [
+            { shape: [[1]], color: '#9c27b0', rows: 1, cols: 1 },
+            { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 },
+            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#4caf50', rows: 3, cols: 3 },
+            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 },
+            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 },
+            { shape: [[1, 0], [1, 0], [1, 1]], color: '#ff9800', rows: 3, cols: 2 },
+            { shape: [[1, 1, 1], [0, 1, 0]], color: '#ffeb3b', rows: 2, cols: 3 },
+            { shape: [[1, 1], [0, 1]], color: '#03a9f4', rows: 2, cols: 2 },
+            { shape: [[1, 1, 1, 1]], color: '#3f51b5', rows: 1, cols: 4 }
+        ];
+
+        function startGame() {
+            homeScreen.style.display = 'none';
+            applyRandomTheme();
+            resetGame();
+        }
+
+        function goHome() {
+            gameOverModal.style.display = 'none';
+            homeScreen.style.display = 'flex';
+        }
+
+        function spawnBlocks() {
+            for (let i = 0; i < 3; i++) {
+                const randIndex = Math.floor(Math.random() * blockPool.length);
+                rackSlots[i] = blockPool[randIndex];
+            }
+            renderRack();
+            checkGameOver();
+        }
+
+        function renderRack() {
+            rackEl.innerHTML = '';
+            rackSlots.forEach((block, slotIndex) => {
+                if (!block) {
+                    const emptyBox = document.createElement('div');
+                    emptyBox.style.width = '80px';
+                    rackEl.appendChild(emptyBox);
+                    return;
                 }
+
+                const box = document.createElement('div');
+                box.className = 'block-container';
+                box.style.gridTemplateRows = `repeat(${block.rows}, 27px)`;
+                box.style.gridTemplateColumns = `repeat(${block.cols}, 27px)`;
+                box.dataset.slotIndex = slotIndex;
+
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
+                        const tile = document.createElement('div');
+                        tile.className = 'tile';
+                        if (block.shape[r][c] === 1) {
+                            tile.style.backgroundColor = block.color;
+                        } else {
+                            tile.style.backgroundColor = 'transparent';
+                        }
+                        box.appendChild(tile);
+                    }
+                }
+
+                box.addEventListener('touchstart', handleTouchStart, { passive: false });
+                box.addEventListener('touchmove', handleTouchMove, { passive: false });
+                box.addEventListener('touchend', handleTouchEnd, { passive: false });
+                box.addEventListener('mousedown', handleMouseDown);
+
+                rackEl.appendChild(box);
             });
-            colsToBlast.forEach(c => {
+        }
+
+        function clearPreview() {
+            const currentCellBg = getComputedStyle(document.documentElement).getPropertyValue('--cell-bg').trim();
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[r * COLS + c];
+                    if (boardState[r][c] === 0) {
+                        cell.style.backgroundColor = currentCellBg;
+                        cell.style.opacity = '1';
+                    }
+                }
+            }
+        }
+
+        function updatePreview(clientX, clientY, slotIndex) {
+            clearPreview();
+            const target = document.elementFromPoint(clientX, clientY);
+            if (!target || !target.classList.contains('cell')) return;
+
+            const startRow = parseInt(target.dataset.row);
+            const startCol = parseInt(target.dataset.col);
+            const block = rackSlots[slotIndex];
+            if (!block) return;
+
+            if (canBlockFit(startRow, startCol, block)) {
+                for (let r = 0; r < block.rows; r++) {
+                    for (let c = 0; c < block.cols; c++) {
+                        if (block.shape[r][c] === 1) {
+                            const cell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
+                            cell.style.backgroundColor = block.color;
+                            cell.style.opacity = '0.5'; 
+                        }
+                    }
+                }
+            }
+        }
+
+        function canBlockFit(startRow, startCol, block) {
+            if (startRow + block.rows > ROWS || startCol + block.cols > COLS) return false;
+            for (let r = 0; r < block.rows; r++) {
+                for (let c = 0; c < block.cols; c++) {
+                    if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function checkGameOver() {
+            const availableBlocks = rackSlots.filter(b => b !== null);
+            if (availableBlocks.length === 0) return;
+
+            for (let block of availableBlocks) {
                 for (let r = 0; r < ROWS; r++) {
-                    boardState[r][c] = 0;
-                    boardEl.children[r * COLS + c].style.backgroundColor = '#25252e';
-                    boardEl.children[r * COLS + c].style.opacity = '1';
+                    for (let c = 0; c < COLS; c++) {
+                        if (canBlockFit(r, c, block)) return;
+                    }
                 }
-            });
+            }
+            gameOverModal.style.display = 'flex';
+        }
+
+        function resetGame() {
+            score = 0;
+            comboCount = 0;
+            currentScoreEl.textContent = '0';
+            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            
+            const currentCellBg = getComputedStyle(document.documentElement).getPropertyValue('--cell-bg').trim();
+            for (let i = 0; i < boardEl.children.length; i++) {
+                boardEl.children[i].style.backgroundColor = currentCellBg;
+                boardEl.children[i].style.opacity = '1';
+                boardEl.children[i].className = 'cell';
+            }
+            
+            gameOverModal.style.display = 'none';
+            spawnBlocks();
+        }
+
+        // 터치/마우스 오프셋 핸들러 통합
+        function handleTouchStart(e) {
+            e.preventDefault(); activeBlock = this; const touch = e.touches[0];
+            activeBlock.style.position = 'fixed'; activeBlock.style.zIndex = '1000';
+            activeBlock.style.transform = 'scale(1.2) translateY(-40px)'; activeBlock.style.pointerEvents = 'none';
+            moveBlock(touch.clientX, touch.clientY);
+            updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
+        }
+        function handleTouchMove(e) {
+            if (!activeBlock) return; e.preventDefault(); const touch = e.touches[0];
+            moveBlock(touch.clientX, touch.clientY); updatePreview(touch.clientX, touch.clientY - 40, activeBlock.dataset.slotIndex);
+        }
+        function handleTouchEnd(e) {
+            if (!activeBlock) return; const touch = e.changedTouches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY - 40);
+            clearPreview(); activeBlock.style.transform = 'none'; activeBlock.style.pointerEvents = 'auto';
+            processPlacement(target);
+        }
+        function moveBlock(clientX, clientY) {
+            const rect = activeBlock.getBoundingClientRect();
+            activeBlock.style.left = `${clientX - rect.width / 2}px`; activeBlock.style.top = `${clientY - rect.height / 2 - 40}px`;
+        }
+
+        let mouseDragBlock = null;
+        function handleMouseDown(e) {
+            mouseDragBlock = this; mouseDragBlock.style.position = 'fixed'; mouseDragBlock.style.zIndex = '1000'; mouseDragBlock.style.pointerEvents = 'none';
+            const moveHandler = (ev) => {
+                const rect = mouseDragBlock.getBoundingClientRect();
+                mouseDragBlock.style.left = `${ev.clientX - rect.width/2}px`; mouseDragBlock.style.top = `${ev.clientY - rect.height/2}px`;
+                updatePreview(ev.clientX, ev.clientY, mouseDragBlock.dataset.slotIndex);
+            };
+            const upHandler = (ev) => {
+                window.removeEventListener('mousemove', moveHandler); window.removeEventListener('mouseup', upHandler);
+                const target = document.elementFromPoint(ev.clientX, ev.clientY); clearPreview();
+                activeBlock = mouseDragBlock; activeBlock.style.pointerEvents = 'auto';
+                processPlacement(target); mouseDragBlock = null;
+            };
+            window.addEventListener('mousemove', moveHandler); window.addEventListener('mouseup', upHandler);
+        }
+
+        function createExplosion(cellEl, color) {
+            const rect = cellEl.getBoundingClientRect();
+            for (let i = 0; i < 6; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle'; particle.style.backgroundColor = color;
+                particle.style.left = `${rect.left + rect.width / 2}px`; particle.style.top = `${rect.top + rect.height / 2}px`;
+                const angle = Math.random() * Math.PI * 2; const distance = Math.random() * 50 + 30;
+                particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+                particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+                document.body.appendChild(particle); setTimeout(() => particle.remove(), 500);
+            }
+        }
+
+        // [추가] 연속 콤보 영단어 문구 연출 팝업 시스템
+        function showComboReaction(combo) {
+            let text = "GREAT!";
+            let color = "#ffeb3b"; 
+            if (combo === 2) { text = "EXCELLENT!!"; color = "#00e676"; }
+            else if (combo === 3) { text = "AMAZING!!!"; color = "#00b0ff"; }
+            else if (combo >= 4) { text = "UNBELIEVABLE!!!!"; color = "#d500f9"; }
+
+            comboTextEl.textContent = text;
+            comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
+            
+            comboTextEl.className = ''; // 애니메이션 초기화용 클래스 제거
+            void comboTextEl.offsetWidth; // 브라우저 리플로우 강제 트리거
+            comboTextEl.className = 'combo-animate';
+        }
+
+        // [추가] 올 클리어 시 한줄씩 초고속으로 다 채웠다 터뜨린 후 테마 전환
+        async function playAllClearAnimation() {
+            const colors = ['#e91e63', '#00bcd4', '#ffeb3b', '#4caf50', '#ff9800', '#9c27b0', '#03a9f4', '#3f51b5'];
+            
+            // 1단계: 위에서 아래로 한 줄씩 초고속으로 전격 충전되는 시각 연출
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[r * COLS + c];
+                    cell.style.backgroundColor = colors[r];
+                    cell.style.color = colors[r];
+                    cell.classList.add('glow-blast');
+                }
+                await new Promise(resolve => setTimeout(resolve, 50)); // 각 행별 충전 딜레이 속도
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 150));
+
+            // 2단계: 사방 파티클 터뜨리며 한 방에 싹 클리어 및 무작위 신규 테마 장착
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = boardEl.children[r * COLS + c];
+                    createExplosion(cell, colors[r]);
+                }
+            }
+
+            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            applyRandomTheme(); // 테마 교체 함수 호출!
+            
+            // 전격 글로우 스타일 클래스 제거
+            for (let i = 0; i < boardEl.children.length; i++) {
+                boardEl.children[i].classList.remove('glow-blast');
+            }
+            
+            addScore(1000); // 올클리어 특수 보너스 포인트 지급
+            showComboReaction(4); // 문구 이펙트 호출
+        }
+
+        function processPlacement(target) {
+            let placed = false;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex);
+            const block = rackSlots[slotIndex];
+
+            if (target && target.classList.contains('cell') && block) {
+                const startRow = parseInt(target.dataset.row);
+                const startCol = parseInt(target.dataset.col);
+
+                if (canBlockFit(startRow, startCol, block)) {
+                    let tileCount = 0;
+                    for (let r = 0; r < block.rows; r++) {
+                        for (let c = 0; c < block.cols; c++) {
+                            if (block.shape[r][c] === 1) {
+                                boardState[startRow + r][startCol + c] = block.color;
+                                const targetCell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
+                                targetCell.style.backgroundColor = block.color;
+                                tileCount++;
+                            }
+                        }
+                    }
+                    
+                    addScore(tileCount * 10);
+                    checkAndBlast();
+                    
+                    rackSlots[slotIndex] = null;
+                    placed = true;
+                }
+            }
+
+            activeBlock.style.position = 'relative'; activeBlock.style.left = '0px'; activeBlock.style.top = '0px'; activeBlock.style.zIndex = '10'; activeBlock = null;
+
+            if (placed) {
+                if (rackSlots.every(slot => slot === null)) {
+                    spawnBlocks();
+                } else {
+                    renderRack();
+                    checkGameOver();
+                }
+            } else {
+                renderRack();
+            }
+        }
+
+        function addScore(amount) {
+            score += amount; currentScoreEl.textContent = score;
+            if (score > bestScore) { bestScore = score; bestScoreEl.textContent = bestScore; }
+        }
+
+        // [수정] 네온 글로우(빛남) 및 블러 연출이 접목된 코어 소거 로직
+        function checkAndBlast() {
+            let rowsToBlast = [];
+            let colsToBlast = [];
+
+            for (let r = 0; r < ROWS; r++) {
+                if (boardState[r].every(cell => cell !== 0)) rowsToBlast.push(r);
+            }
+            for (let c = 0; c < COLS; c++) {
+                let colFull = true;
+                for (let r = 0; r < ROWS; r++) {
+                    if (boardState[r][c] === 0) { colFull = false; break; }
+                }
+                if (colFull) colsToBlast.push(c);
+            }
+
+            const linesBlasted = rowsToBlast.length + colsToBlast.length;
+            
+            if (linesBlasted > 0) {
+                comboCount++; // 줄 소거에 성공했으므로 콤보 스택 누적
+                addScore(linesBlasted * 150 * comboCount); // 콤보 가중치 보너스 스코어 지급
+                showComboReaction(comboCount); // 영단어 이펙트 활성화
+
+                // 지워지는 칸들에 빛남(glow-blast) 스타일 클래스 즉시 주입
+                rowsToBlast.forEach(r => {
+                    for(let c = 0; c < COLS; c++) {
+                        const cell = boardEl.children[r * COLS + c];
+                        cell.style.color = boardState[r][c];
+                        cell.classList.add('glow-blast');
+                    }
+                });
+                colsToBlast.forEach(c => {
+                    for(let r = 0; r < ROWS; r++) {
+                        const cell = boardEl.children[r * COLS + c];
+                        cell.style.color = boardState[r][c];
+                        cell.classList.add('glow-blast');
+                    }
+                });
+
+                // 번쩍이는 글로우 효과를 충분히 감상할 수 있도록 시간차(200ms)를 두고 폭파 처리
+                setTimeout(() => {
+                    rowsToBlast.forEach(r => {
+                        for(let c = 0; c < COLS; c++) {
+                            createExplosion(boardEl.children[r * COLS + c], boardState[r][c]);
+                        }
+                    });
+                    colsToBlast.forEach(c => {
+                        for (let r = 0; r < ROWS; r++) {
+                            if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) {
+                                createExplosion(boardEl.children[r * COLS + c], boardState[r][c]);
+                            }
+                        }
+                    });
+
+                    // 색상 클리어 및 초기화 복원
+                    const currentCellBg = getComputedStyle(document.documentElement).getPropertyValue('--cell-bg').trim();
+                    rowsToBlast.forEach(r => {
+                        boardState[r].fill(0);
+                        for(let c=0; c<COLS; c++) {
+                            const cell = boardEl.children[r * COLS + c];
+                            cell.style.backgroundColor = currentCellBg;
+                            cell.classList.remove('glow-blast');
+                        }
+                    });
+                    colsToBlast.forEach(c => {
+                        for (let r = 0; r < ROWS; r++) {
+                            boardState[r][c] = 0;
+                            const cell = boardEl.children[r * COLS + c];
+                            cell.style.backgroundColor = currentCellBg;
+                            cell.classList.remove('glow-blast');
+                        }
+                    });
+
+                    // [추가] 판 위의 모든 칸이 다 비었는지(All Clear) 상시 체크 연산 부문
+                    let isAllClear = true;
+                    for (let r = 0; r < ROWS; r++) {
+                        for (let c = 0; c < COLS; c++) {
+                            if (boardState[r][c] !== 0) { isAllClear = false; break; }
+                        }
+                    }
+                    if (isAllClear) {
+                        playAllClearAnimation(); // 올 클리어 퍼포먼스 전개!
+                    }
+
+                }, 200);
+
+            } else {
+                comboCount = 0; // 줄 소거를 실패한 턴에는 가차 없이 콤보 브레이크 초기화
+            }
+        }
+    </script>
+</body>
+</html>
+                          const cell = boardEl.children[r * COLS + c];
+                            cell.style.backgroundColor = currentCellBg;
+                            cell.classList.remove('glow-blast');
+                        }
+                    });
+
+                    // [추가] 판 위의 모든 칸이 다 비었는지(All Clear) 상시 체크 연산 부문
+                    let isAllClear = true;
+                    for (let r = 0; r < ROWS; r++) {
+                        for (let c = 0; c < COLS; c++) {
+                            if (boardState[r][c] !== 0) { isAllClear = false; break; }
+                        }
+                    }
+                    if (isAllClear) {
+                        playAllClearAnimation(); // 올 클리어 퍼포먼스 전개!
+                    }
+
+                }, 200);
+
+            } else {
+                comboCount = 0; // 줄 소거를 실패한 턴에는 가차 없이 콤보 브레이크 초기화
+            }
         }
     </script>
 </body>
