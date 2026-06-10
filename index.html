@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 드래그 좌표 완전 수정판</title>
+    <title>블록 블라스터 - 드래그 튕김 및 잔상 완벽 수정판</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
@@ -85,8 +85,18 @@
         }
         
         .block-container { display: grid; gap: 3px; position: relative; touch-action: none; z-index: 10; cursor: grab; transform: translate3d(0,0,0); }
-        .block-container.dragging { transform: scale(1.0) translate3d(0,0,0) !important; }
         
+        /* 드래그 전용 가상 레이어 스타일 */
+        .drag-clone {
+            position: fixed;
+            z-index: 9999;
+            pointer-events: none;
+            transform: scale(1.0);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: grid;
+            gap: 3px;
+        }
+
         .tile { border-radius: 5px; width: 36px; height: 36px; box-sizing: border-box; pointer-events: none; transform: translate3d(0,0,0); }
 
         .particle {
@@ -135,7 +145,7 @@
 <body>
 
     <div id="homeScreen">
-        <h1>🧱 BLOCK BLAST</h1>
+        <h1>🧱 BLOCK BLAST!</h1>
         <button class="main-btn" onclick="startGame(false)">PLAY GAME</button>
         <button class="main-btn beta-btn" onclick="openBetaModal()">🧪 β-test MODE</button>
     </div>
@@ -185,11 +195,15 @@
         
         let score = 0;
         let bestScore = 0;
-        let activeBlock = null;
+        
+        // 드래그 시스템 전면 수정용 변수
+        let activeSourceEl = null; // 랙에 남아있는 원본 엘리먼트
+        let dragCloneEl = null;     // 화면에 띄워 움직이는 복사본 엘리먼트
+        let activeSlotIndex = -1;
+        
         let rackSlots = [null, null, null];
         let comboCount = 0;
 
-        // 마우스/터치 다운 시점의 순수 드래그 오프셋 좌표만 기록
         let dragOffsetX = 0;
         let dragOffsetY = 0;
 
@@ -398,281 +412,11 @@
             return maxComponent;
         }
 
-        /* [움직임 버그 완전 근절 핵심부] 보드판과 블록 엘리먼트의 기하학적 매핑 수정 */
         function getTargetBoardPos(clientX, clientY, block) {
-            if (!activeBlock) return null;
+            if (!dragCloneEl) return null;
             
             const boardRect = boardEl.getBoundingClientRect();
-            const blockRect = activeBlock.getBoundingClientRect();
+            const blockRect = dragCloneEl.getBoundingClientRect();
             const cellSize = boardRect.width / 8;
             
-            // 손가락 터치 위치와 무관하게, 화면에 그려진 블록 '전체 좌상단 모서리'의 중심값을 찾음
-            const blockLeftX = blockRect.left + 2; 
-            const blockTopY = blockRect.top + 2;
-
-            // 보드의 격자에 매핑되도록 정밀 반올림(round) 처리
-            const c = Math.round((blockLeftX - boardRect.left) / cellSize);
-            const r = Math.round((blockTopY - boardRect.top) / cellSize);
-            
-            return { startRow: r, startCol: c };
-        }
-
-        function updatePreview(clientX, clientY, slotIndex) {
-            refreshBoardGraphics(false); 
-            const block = rackSlots[slotIndex];
-            if (!block) return;
-
-            const pos = getTargetBoardPos(clientX, clientY, block);
-            if (!pos) return;
-            const { startRow, startCol } = pos;
-
-            if (canBlockFit(startRow, startCol, block)) {
-                let virtualBoard = boardState.map(row => [...row]);
-
-                for (let r = 0; r < block.rows; r++) {
-                    for (let c = 0; c < block.cols; c++) {
-                        if (block.shape[r][c] === 1) {
-                            const vr = startRow + r;
-                            const vc = startCol + c;
-                            if (vr >= 0 && vr < ROWS && vc >= 0 && vc < COLS) {
-                                const cell = boardEl.children[vr * COLS + vc];
-                                cell.style.backgroundColor = block.color;
-                                cell.querySelector('.cell-img-layer').style.opacity = '0';
-                                virtualBoard[vr][vc] = block.color;
-                            }
-                        }
-                    }
-                }
-
-                let predictRows = [];
-                let predictCols = [];
-                for (let r = 0; r < ROWS; r++) {
-                    if (virtualBoard[r].every(cell => cell !== 0)) predictRows.push(r);
-                }
-                for (let c = 0; c < COLS; c++) {
-                    let colFull = true;
-                    for (let r = 0; r < ROWS; r++) {
-                        if (virtualBoard[r][c] === 0) { colFull = false; break; }
-                    }
-                    if (colFull) predictCols.push(c);
-                }
-
-                predictRows.forEach(r => {
-                    for(let c = 0; c < COLS; c++) boardEl.children[r * COLS + c].classList.add('glow-blast');
-                });
-                predictCols.forEach(c => {
-                    for(let r = 0; r < ROWS; r++) boardEl.children[r * COLS + c].classList.add('glow-blast');
-                });
-            }
-        }
-
-        function canBlockFit(startRow, startCol, block) {
-            if (startRow < 0 || startCol < 0 || startRow + block.rows > ROWS || startCol + block.cols > COLS) return false;
-            for (let r = 0; r < block.rows; r++) {
-                for (let c = 0; c < block.cols; c++) {
-                    if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) return false;
-                }
-            }
-            return true;
-        }
-
-        function checkGameOver() {
-            const availableBlocks = rackSlots.filter(b => b !== null);
-            if (availableBlocks.length === 0) return;
-            for (let block of availableBlocks) {
-                for (let r = 0; r < ROWS; r++) {
-                    for (let c = 0; c < COLS; c++) {
-                        if (canBlockFit(r, c, block)) return; 
-                    }
-                }
-            }
-            gameOverModal.style.display = 'flex';
-        }
-
-        function resetGame() {
-            score = 0; comboCount = 0;
-            currentScoreEl.textContent = '0';
-            boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-            currentLargestComponent.clear();
-            refreshBoardGraphics(false);
-            gameOverModal.style.display = 'none';
-            spawnBlocks();
-        }
-
-        /* 상대적 내부 타일 오프셋을 없애고 직관적인 드래그 연산으로 일치화 */
-        function handleTouchStart(e) {
-            e.preventDefault(); 
-            activeBlock = this; 
-            activeBlock.classList.add('dragging');
-            
-            const touch = e.touches[0]; 
-            const rect = activeBlock.getBoundingClientRect();
-            
-            // 터치 시작 시점의 마우스 위치와 블록 좌상단의 절대 마진을 기록
-            dragOffsetX = touch.clientX - rect.left; 
-            dragOffsetY = touch.clientY - rect.top;
-            
-            activeBlock.style.transform = 'scale(1.0)';
-            activeBlock.style.position = 'fixed'; 
-            activeBlock.style.zIndex = '1000'; 
-            activeBlock.style.pointerEvents = 'none';
-            
-            moveBlock(touch.clientX, touch.clientY);
-            updatePreview(touch.clientX, touch.clientY, parseInt(activeBlock.dataset.slotIndex));
-        }
-
-        function handleTouchMove(e) {
-            if (!activeBlock) return; 
-            e.preventDefault(); 
-            const touch = e.touches[0];
-            moveBlock(touch.clientX, touch.clientY); 
-            updatePreview(touch.clientX, touch.clientY, activeBlock.dataset.slotIndex);
-        }
-
-        function handleTouchEnd(e) {
-            if (!activeBlock) return; 
-            const touch = e.changedTouches[0];
-            activeBlock.classList.remove('dragging'); 
-            activeBlock.style.pointerEvents = 'auto';
-            processPlacement(touch.clientX, touch.clientY);
-        }
-
-        function handleMouseDown(e) {
-            activeBlock = this; 
-            activeBlock.classList.add('dragging');
-            
-            const rect = activeBlock.getBoundingClientRect();
-            dragOffsetX = e.clientX - rect.left; 
-            dragOffsetY = e.clientY - rect.top;
-            
-            activeBlock.style.transform = 'scale(1.0)';
-            activeBlock.style.position = 'fixed'; 
-            activeBlock.style.zIndex = '1000'; 
-            activeBlock.style.pointerEvents = 'none';
-            
-            moveBlock(e.clientX, e.clientY);
-            const slotIndex = parseInt(activeBlock.dataset.slotIndex);
-            updatePreview(e.clientX, e.clientY, slotIndex);
-
-            const moveHandler = (ev) => {
-                if (!activeBlock) return; 
-                moveBlock(ev.clientX, ev.clientY); 
-                updatePreview(ev.clientX, ev.clientY, slotIndex);
-            };
-            const upHandler = (ev) => {
-                window.removeEventListener('mousemove', moveHandler); 
-                window.removeEventListener('mouseup', upHandler);
-                if (!activeBlock) return; 
-                activeBlock.classList.remove('dragging'); 
-                activeBlock.style.pointerEvents = 'auto';
-                processPlacement(ev.clientX, ev.clientY); 
-            };
-            window.addEventListener('mousemove', moveHandler); 
-            window.addEventListener('mouseup', upHandler);
-        }
-
-        function moveBlock(clientX, clientY) {
-            if (!activeBlock) return; 
-            activeBlock.style.left = `${clientX - dragOffsetX}px`; 
-            activeBlock.style.top = `${clientY - dragOffsetY}px`;
-        }
-
-        function createExplosion(cellEl, color) {
-            const rect = cellEl.getBoundingClientRect();
-            for (let i = 0; i < 6; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle'; 
-                particle.style.backgroundColor = color || '#ff1744';
-                particle.style.left = `${rect.left + rect.width / 2}px`; particle.style.top = `${rect.top + rect.height / 2}px`;
-                const angle = Math.random() * Math.PI * 2; const distance = Math.random() * 50 + 30;
-                particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`); particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
-                document.body.appendChild(particle); setTimeout(() => { particle.remove(); }, 400);
-            }
-        }
-
-        function showComboReaction(combo) {
-            let text = "GREAT!"; let color = "#ffeb3b"; 
-            if (combo === 2) { text = "EXCELLENT!!"; color = "#00e676"; } 
-            else if (combo === 3) { text = "AMAZING!!!"; color = "#00b0ff"; } 
-            else if (combo >= 4) { text = "UNBELIEVABLE!!!!"; color = "#d500f9"; }
-            comboTextEl.textContent = text; comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
-            comboTextEl.className = ''; void comboTextEl.offsetWidth; comboTextEl.className = 'combo-animate';
-        }
-
-        function processPlacement(clientX, clientY) {
-            let placed = false; if (!activeBlock) return;
-            const slotIndex = parseInt(activeBlock.dataset.slotIndex); const block = rackSlots[slotIndex];
-
-            if (block) {
-                const pos = getTargetBoardPos(clientX, clientY, block);
-                if (pos) {
-                    const { startRow, startCol } = pos;
-                    if (canBlockFit(startRow, startCol, block)) {
-                        let tileCount = 0;
-                        for (let r = 0; r < block.rows; r++) {
-                            for (let c = 0; c < block.cols; c++) {
-                                if (block.shape[r][c] === 1) {
-                                    boardState[startRow + r][startCol + c] = block.color;
-                                    tileCount++;
-                                }
-                            }
-                        }
-                        addScore(tileCount * 10);
-                        rackSlots[slotIndex] = null; placed = true;
-                        
-                        refreshBoardGraphics(false);
-                        checkAndBlast();
-                    }
-                }
-            }
-
-            if (activeBlock) {
-                activeBlock.style.position = 'relative'; activeBlock.style.left = '0px'; activeBlock.style.top = '0px'; activeBlock.style.zIndex = '10'; activeBlock = null;
-            }
-            
-            if (placed) {
-                if (rackSlots.every(slot => slot === null)) spawnBlocks();
-                else { renderRack(); }
-            } else { renderRack(); refreshBoardGraphics(false); }
-        }
-
-        function addScore(amount) {
-            score += amount; currentScoreEl.textContent = score;
-            if (score > bestScore) { bestScore = score; bestScoreEl.textContent = bestScore; }
-        }
-
-        function checkAndBlast() {
-            let rowsToBlast = []; let colsToBlast = [];
-            for (let r = 0; r < ROWS; r++) { if (boardState[r].every(cell => cell !== 0)) rowsToBlast.push(r); }
-            for (let c = 0; c < COLS; c++) {
-                let colFull = true;
-                for (let r = 0; r < ROWS; r++) { if (boardState[r][c] === 0) { colFull = false; break; } }
-                if (colFull) colsToBlast.push(c);
-            }
-
-            if (rowsToBlast.length + colsToBlast.length > 0) {
-                comboCount++; addScore((rowsToBlast.length + colsToBlast.length) * 150 * comboCount); showComboReaction(comboCount); 
-
-                setTimeout(() => {
-                    rowsToBlast.forEach(r => { for(let c=0; c<COLS; c++) createExplosion(boardEl.children[r*COLS+c], boardState[r][c]); });
-                    colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) { if (boardState[r][c] !== 0 && !rowsToBlast.includes(r)) createExplosion(boardEl.children[r*COLS+c], boardState[r][c]); } });
-
-                    rowsToBlast.forEach(r => boardState[r].fill(0));
-                    colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
-
-                    requestAnimationFrame(() => {
-                        refreshBoardGraphics(true); 
-                        checkGameOver();            
-                    });
-                }, 150);
-            } else {
-                comboCount = 0;
-                requestAnimationFrame(() => {
-                    refreshBoardGraphics(true);
-                    checkGameOver(); 
-                });
-            }
-        }
-    </script>
-</body>
-</html>
+            const
