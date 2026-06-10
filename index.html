@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 버퍼링 제로 최종판</title>
+    <title>블록 블라스터 - 무조건 렉 제로 최종판</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
@@ -48,14 +48,21 @@
             box-sizing: border-box;
         }
         
-        /* [버퍼링 해결 핵심] CSS 변수를 활용해 렌더링 연산을 브라우저단에서 미리 대기시킴 */
         .cell { 
             background: #202124; border-radius: 6px; box-sizing: border-box; 
-            position: relative;
+            position: relative; overflow: hidden;
+            will-change: background-color;
+        }
+
+        /* [렉 해결 핵심 치트키] 이미지 레이어를 내부에 미리 생성해 두고 투명도만 조절 */
+        .cell-img-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-repeat: no-repeat;
             background-size: 800% 800%;
             background-position: var(--pos-x, 0%) var(--pos-y, 0%);
-            will-change: background-image, background-color; /* GPU 미리 가속 */
+            opacity: 0; /* 평소엔 완전히 숨김 */
+            transition: opacity 0.05s ease; /* 아주 부드럽게 켜지도록 설정 */
+            will-change: opacity; /* GPU 가속 강제 탑재 */
         }
 
         .cell.glow-blast {
@@ -118,7 +125,7 @@
 <body>
 
     <div id="homeScreen">
-        <h1>🧱 BLOCK BLAST!</h1>
+        <h1>🧱 BLOCK BLAST</h1>
         <button class="main-btn" onclick="startGame(false)">PLAY GAME</button>
         <button class="main-btn beta-btn" onclick="openBetaModal()">🧪 β-test MODE</button>
     </div>
@@ -183,7 +190,7 @@
 
         let currentCellColor = '#202124';
 
-        // [최적화 초기화] 격자 배치와 좌표 캐싱을 처음에 한 번만 수행
+        // 8x8 판 생성 시 이미지 레이어도 미리 숨겨둔 채 전부 깔아둡니다.
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
@@ -191,12 +198,15 @@
                 cell.dataset.row = r;
                 cell.dataset.col = c;
                 
-                // 미리 비율 계산값 매Marking하여 리플로우 원천 차단
+                const imgLayer = document.createElement('div');
+                imgLayer.className = 'cell-img-layer';
+                
                 const posX = (c / (COLS - 1)) * 100;
                 const posY = (r / (ROWS - 1)) * 100;
-                cell.style.setProperty('--pos-x', `${posX}%`);
-                cell.style.setProperty('--pos-y', `${posY}%`);
+                imgLayer.style.setProperty('--pos-x', `${posX}%`);
+                imgLayer.style.setProperty('--pos-y', `${posY}%`);
                 
+                cell.appendChild(imgLayer);
                 boardEl.appendChild(cell);
             }
         }
@@ -226,6 +236,12 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 uploadedImgUrl = e.target.result;
+                
+                // [렉 제거의 핵심] 게임 시작 전 64개 숨은 레이어에 주소를 '미리' 한 번만 주입
+                for(let i=0; i<ROWS*COLS; i++) {
+                    boardEl.children[i].querySelector('.cell-img-layer').style.backgroundImage = `url(${uploadedImgUrl})`;
+                }
+
                 uploadModal.style.display = 'none';
                 homeScreen.style.display = 'none';
                 startGame(true);
@@ -298,7 +314,7 @@
             });
         }
 
-        // [버퍼링 해결의 핵심 매커니즘] 불필요한 스타일 스트링 조작 완전 배제
+        // [렉 제로 매커니즘 완료] 단순 투명도(opacity) 스위칭만 하므로 브라우저 버퍼링 제로 보장
         function refreshBoardGraphics(runBFS = false) {
             if (isBetaMode && runBFS) {
                 currentLargestComponent = findLargestConnectedComponent();
@@ -308,22 +324,20 @@
                 const rowOffset = r * COLS;
                 for (let c = 0; c < COLS; c++) {
                     const cell = boardEl.children[rowOffset + c];
+                    const imgLayer = cell.querySelector('.cell-img-layer');
                     cell.classList.remove('glow-blast');
                     
                     if (boardState[r][c] !== 0) {
                         const key = (r << 4) | c;
                         if (isBetaMode && currentLargestComponent.has(key)) {
-                            // 단순 경로 주입으로 변경하여 렉(딜레이) 현상 완전 제거
-                            if (cell.style.backgroundImage !== `url("${uploadedImgUrl}")`) {
-                                cell.style.backgroundImage = `url(${uploadedImgUrl})`;
-                            }
                             cell.style.backgroundColor = 'transparent';
+                            imgLayer.style.opacity = '1'; /* 이미 켜진 그림 숨김 해제 */
                         } else {
-                            cell.style.backgroundImage = 'none';
+                            imgLayer.style.opacity = '0';
                             cell.style.backgroundColor = boardState[r][c];
                         }
                     } else {
-                        cell.style.backgroundImage = 'none';
+                        imgLayer.style.opacity = '0';
                         cell.style.backgroundColor = currentCellColor;
                     }
                 }
@@ -406,7 +420,7 @@
                             if (vr >= 0 && vr < ROWS && vc >= 0 && vc < COLS) {
                                 const cell = boardEl.children[vr * COLS + vc];
                                 cell.style.backgroundColor = block.color;
-                                cell.style.backgroundImage = 'none';
+                                cell.querySelector('.cell-img-layer').style.opacity = '0';
                                 virtualBoard[vr][vc] = block.color;
                             }
                         }
