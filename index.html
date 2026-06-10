@@ -55,18 +55,13 @@
         .divider { width: 360px; height: 1px; background: rgba(255,255,255,0.1); margin: 25px 0; }
         #rack { display: flex; gap: 25px; justify-content: center; align-items: center; width: 360px; height: 140px; position: relative; }
         
-        /* 랙과 드래그 시 크기 변화 없앰 (동일한 44px 그리드로 크기 유지) */
         .block-container { 
             display: grid; gap: 2px; position: relative; touch-action: none; z-index: 10; cursor: grab;
         }
         .block-container:active { cursor: grabbing; }
+        .block-container.dragging { transform: scale(1.0) !important; }
         
-        /* 드래그 중 크기 축소 없음, 원본 배율 유지 */
-        .block-container.dragging {
-            transform: scale(1.0) !important; 
-        }
-        
-        .tile { border-radius: 5px; width: 44px; height: 44px; box-sizing: border-box; }
+        .tile { border-radius: 5px; width: 44px; height: 44px; box-sizing: border-box; pointer-events: none; }
 
         .particle {
             position: fixed; width: 8px; height: 8px; border-radius: 2px;
@@ -114,7 +109,7 @@
 <body>
 
     <div id="homeScreen">
-        <h1>🧱 BLOCK BLAST!</h1>
+        <h1>🧱 BLOCK BLAST</h1>
         <button class="main-btn" onclick="startGame()">PLAY GAME</button>
     </div>
 
@@ -162,11 +157,14 @@
         let dragOffsetX = 0;
         let dragOffsetY = 0;
 
-        // 차이가 극명한 유니크 테마 3종 구성
+        // 드래그를 시작한 타일이 블록 내에서 몇 번째 행/열인지 저장하는 변수
+        let startTileRowOffset = 0;
+        let startTileColOffset = 0;
+
         const themes = [
-            { bg: '#111216', border: '#383a40', cell: '#202124' }, // 01. 오리지널 다크 크롬
-            { bg: '#060e26', border: '#00d2ff', cell: '#0b1b4f' }, // 02. 네온 우주 네이비
-            { bg: '#0d2219', border: '#a3e635', cell: '#143829' }  // 03. 비비드 네추럴 그린
+            { bg: '#111216', border: '#383a40', cell: '#202124' }, 
+            { bg: '#060e26', border: '#00d2ff', cell: '#0b1b4f' }, 
+            { bg: '#0d2219', border: '#a3e635', cell: '#143829' }  
         ];
         let currentCellColor = '#202124';
 
@@ -196,24 +194,23 @@
             }
         }
 
-        // [업데이트] 실제 인게임에 존재하는 14개 핵심 블록 완벽 구현 pool
         const blockPool = [
-            { shape: [[1]], color: '#ffeb3b', rows: 1, cols: 1 }, // 1x1 점
-            { shape: [[1, 1]], color: '#ff9800', rows: 1, cols: 2 }, // 1x2 바
-            { shape: [[1], [1]], color: '#ff9800', rows: 2, cols: 1 }, // 2x1 바
-            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 }, // 1x3 바
-            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 }, // 3x1 바
-            { shape: [[1, 1, 1, 1]], color: '#03a9f4', rows: 1, cols: 4 }, // 1x4 롱바
-            { shape: [[1], [1], [1], [1]], color: '#03a9f4', rows: 4, cols: 1 }, // 4x1 롱바
-            { shape: [[1, 1], [1, 1]], color: '#4caf50', rows: 2, cols: 2 }, // 네모 2x2
-            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#9c27b0', rows: 3, cols: 3 }, // 거대 네모 3x3
-            { shape: [[1, 0], [1, 0], [1, 1]], color: '#3f51b5', rows: 3, cols: 2 }, // 기본 L자형
-            { shape: [[1, 1, 1], [1, 0, 0]], color: '#3f51b5', rows: 2, cols: 3 }, // 누운 L자형
-            { shape: [[0, 1], [0, 1], [1, 1]], color: '#00bcd4', rows: 3, cols: 2 }, // 반대 L자형
-            { shape: [[1, 1], [0, 1], [0, 1]], color: '#00bcd4', rows: 3, cols: 2 }, // 뒤집힌 L자형
-            { shape: [[0, 1, 0], [1, 1, 1]], color: '#ec407a', rows: 2, cols: 3 }, // ㅗ 모양 (배의 키)
-            { shape: [[1, 0], [1, 1], [0, 1]], color: '#a3e635', rows: 3, cols: 2 }, // 계단형 (Z모양)
-            { shape: [[0, 1], [1, 1], [1, 0]], color: '#a3e635', rows: 3, cols: 2 }  // 반대 계단형
+            { shape: [[1]], color: '#ffeb3b', rows: 1, cols: 1 }, 
+            { shape: [[1, 1]], color: '#ff9800', rows: 1, cols: 2 }, 
+            { shape: [[1], [1]], color: '#ff9800', rows: 2, cols: 1 }, 
+            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 }, 
+            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 }, 
+            { shape: [[1, 1, 1, 1]], color: '#03a9f4', rows: 1, cols: 4 }, 
+            { shape: [[1], [1], [1], [1]], color: '#03a9f4', rows: 4, cols: 1 }, 
+            { shape: [[1, 1], [1, 1]], color: '#4caf50', rows: 2, cols: 2 }, 
+            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#9c27b0', rows: 3, cols: 3 }, 
+            { shape: [[1, 0], [1, 0], [1, 1]], color: '#3f51b5', rows: 3, cols: 2 }, 
+            { shape: [[1, 1, 1], [1, 0, 0]], color: '#3f51b5', rows: 2, cols: 3 }, 
+            { shape: [[0, 1], [0, 1], [1, 1]], color: '#00bcd4', rows: 3, cols: 2 }, 
+            { shape: [[1, 1], [0, 1], [0, 1]], color: '#00bcd4', rows: 3, cols: 2 }, 
+            { shape: [[0, 1, 0], [1, 1, 1]], color: '#ec407a', rows: 2, cols: 3 }, 
+            { shape: [[1, 0], [1, 1], [0, 1]], color: '#a3e635', rows: 3, cols: 2 }, 
+            { shape: [[0, 1], [1, 1], [1, 0]], color: '#a3e635', rows: 3, cols: 2 }  
         ];
 
         function startGame() {
@@ -251,8 +248,6 @@
                 box.style.gridTemplateRows = `repeat(${block.rows}, 44px)`;
                 box.style.gridTemplateColumns = `repeat(${block.cols}, 44px)`;
                 box.dataset.slotIndex = slotIndex;
-
-                // 미니 블록 스케일 다운 제거, 원본 비율 그대로 아담하게 배치용 줌만 적용 (드래그시 1대1 일치)
                 box.style.transform = 'scale(0.7)';
                 box.style.transformOrigin = 'center center';
 
@@ -260,6 +255,8 @@
                     for (let c = 0; c < block.cols; c++) {
                         const tile = document.createElement('div');
                         tile.className = 'tile';
+                        tile.dataset.tileRow = r;
+                        tile.dataset.tileCol = c;
                         if (block.shape[r][c] === 1) {
                             tile.style.backgroundColor = block.color;
                             tile.style.boxShadow = 'inset 0 0 6px rgba(255,255,255,0.3)';
@@ -292,18 +289,31 @@
             }
         }
 
-        // [핵심 엔진 교체] 마우스/터치 정중앙 기준 좌표 계산 및 스냅 인지 로직
+        // [판정 보정] 손가락/마우스로 가린 셀을 정확하게 추적하도록 바운딩 박스 역산 판정
         function getTargetBoardPos(clientX, clientY, block) {
-            // 마우스 직하방에 있는 셀 하나를 임시 추적
             const hoveredEl = document.elementFromPoint(clientX, clientY);
-            if (!hoveredEl || !hoveredEl.classList.contains('cell')) return null;
+            if (!hoveredEl || !hoveredEl.classList.contains('cell')) {
+                // 직하방에 셀이 없으면 보드판 전체 영역과의 거리를 계산해 가장 가까운 셀 매칭
+                const boardRect = boardEl.getBoundingClientRect();
+                if (clientX < boardRect.left || clientX > boardRect.right || clientY < boardRect.top || clientY > boardRect.bottom) {
+                    return null;
+                }
+                const c = Math.floor((clientX - boardRect.left - 8) / 46);
+                const r = Math.floor((clientY - boardRect.top - 8) / 46);
+                if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+                    const startRow = r - startTileRowOffset;
+                    const startCol = c - startTileColOffset;
+                    return { startRow, startCol };
+                }
+                return null;
+            }
 
-            // 시각적 직관성을 향상하기 위해, 블록의 정중앙 행/열 크기 절반만큼 오프셋을 역산
             const cellRow = parseInt(hoveredEl.dataset.row);
             const cellCol = parseInt(hoveredEl.dataset.col);
 
-            const startRow = cellRow - Math.floor((block.rows - 1) / 2);
-            const startCol = cellCol - Math.floor((block.cols - 1) / 2);
+            // 유저가 처음 터치했던 블록 내부 조각 위치(Offset)를 기준으로 기하학적 매칭
+            const startRow = cellRow - startTileRowOffset;
+            const startCol = cellCol - startTileColOffset;
 
             return { startRow, startCol };
         }
@@ -324,12 +334,14 @@
                 for (let r = 0; r < block.rows; r++) {
                     for (let c = 0; c < block.cols; c++) {
                         if (block.shape[r][c] === 1) {
-                            const idx = (startRow + r) * COLS + (startCol + c);
-                            if (idx >= 0 && idx < boardEl.children.length) {
+                            const virtualRow = startRow + r;
+                            const virtualCol = startCol + c;
+                            if (virtualRow >= 0 && virtualRow < ROWS && virtualCol >= 0 && virtualCol < COLS) {
+                                const idx = virtualRow * COLS + virtualCol;
                                 const cell = boardEl.children[idx];
                                 cell.style.backgroundColor = block.color;
                                 cell.style.opacity = '0.5'; 
-                                virtualBoard[startRow + r][startCol + c] = block.color;
+                                virtualBoard[virtualRow][virtualCol] = block.color;
                             }
                         }
                     }
@@ -402,7 +414,6 @@
             spawnBlocks();
         }
 
-        // 모바일 터치 오프셋 연산 커스텀 (중앙 자동 포커싱 드래그)
         function handleTouchStart(e) {
             e.preventDefault(); 
             activeBlock = this; 
@@ -410,9 +421,18 @@
             const touch = e.touches[0];
             const rect = activeBlock.getBoundingClientRect();
             
-            // 축소 방지 및 드래그 오브젝트의 중앙 고정 연산
+            // 터치 시작 시 실제 타일 좌표 기준 중앙 오프셋 고정 계산
             dragOffsetX = rect.width / 2;
             dragOffsetY = rect.height / 2;
+
+            // 터치한 타일의 상대적 위치 계산
+            const localX = touch.clientX - rect.left;
+            const localY = touch.clientY - rect.top;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex);
+            const block = rackSlots[slotIndex];
+            
+            startTileColOffset = Math.floor(localX / (rect.width / block.cols));
+            startTileRowOffset = Math.floor(localY / (rect.height / block.rows));
 
             activeBlock.style.position = 'fixed'; 
             activeBlock.style.zIndex = '1000';
@@ -443,7 +463,6 @@
             processPlacement(touch.clientX, touch.clientY);
         }
 
-        // PC 마우스 드래그 오프셋 커스텀 (중앙 자동 포커싱 드래그)
         function handleMouseDown(e) {
             activeBlock = this;
             activeBlock.classList.add('dragging');
@@ -451,6 +470,14 @@
             
             dragOffsetX = rect.width / 2;
             dragOffsetY = rect.height / 2;
+
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+            const slotIndex = parseInt(activeBlock.dataset.slotIndex);
+            const block = rackSlots[slotIndex];
+            
+            startTileColOffset = Math.floor(localX / (rect.width / block.cols));
+            startTileRowOffset = Math.floor(localY / (rect.height / block.rows));
 
             activeBlock.style.position = 'fixed'; 
             activeBlock.style.zIndex = '1000'; 
