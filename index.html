@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 베타 면적 모드</title>
+    <title>블록 블라스터 - 렉 최적화 버전</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none; touch-action: none;
-            transition: background 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
         
         #homeScreen {
@@ -45,11 +44,10 @@
             display: grid; grid-template-columns: repeat(8, 44px); grid-template-rows: repeat(8, 44px); gap: 2px;
             padding: 8px; border: 5px solid #333; border-radius: 12px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.6); position: relative; 
-            transition: background 0.6s, border-color 0.6s;
         }
         .cell { 
             background: #202124; border-radius: 5px; box-sizing: border-box; 
-            position: relative; transition: background 0.15s ease, filter 0.15s ease;
+            position: relative; transition: background 0.1s ease;
             background-size: 366px 366px;
             background-repeat: no-repeat;
         }
@@ -64,7 +62,6 @@
         #rack { display: flex; gap: 25px; justify-content: center; align-items: center; width: 360px; height: 140px; position: relative; }
         
         .block-container { display: grid; gap: 2px; position: relative; touch-action: none; z-index: 10; cursor: grab; }
-        .block-container:active { cursor: grabbing; }
         .block-container.dragging { transform: scale(1.0) !important; }
         
         .tile { border-radius: 5px; width: 44px; height: 44px; box-sizing: border-box; pointer-events: none; }
@@ -176,6 +173,7 @@
 
         let isBetaMode = false;
         let uploadedImgUrl = "";
+        let currentLargestComponent = new Set(); // 현재 면적이 가장 큰 그룹 저장 캐시
 
         const themes = [
             { bg: '#111216', border: '#383a40', cell: '#202124' }, 
@@ -197,7 +195,7 @@
                 boardEl.style.borderColor = randomTheme.border;
                 currentCellColor = randomTheme.cell;
             }
-            refreshBoardGraphics();
+            refreshBoardGraphics(false); // 초기 화면은 연산 없이 기본 세팅
         }
 
         for (let r = 0; r < ROWS; r++) {
@@ -228,16 +226,11 @@
             { shape: [[0, 1, 0], [1, 1, 1]], color: '#ec407a', rows: 2, cols: 3 }
         ];
 
-        function openBetaModal() {
-            uploadModal.style.display = 'flex';
-        }
+        function openBetaModal() { uploadModal.style.display = 'flex'; }
 
         function startBetaGame() {
             const file = imageInput.files[0];
-            if (!file) {
-                alert("사진을 선택해주세요!");
-                return;
-            }
+            if (!file) { alert("사진을 선택해주세요!"); return; }
             const reader = new FileReader();
             reader.onload = function(e) {
                 uploadedImgUrl = e.target.result;
@@ -250,15 +243,13 @@
 
         function startGame(betaMode = false) {
             isBetaMode = betaMode;
+            currentLargestComponent.clear();
             homeScreen.style.display = 'none';
             applyRandomTheme();
             resetGame();
         }
 
-        function goHome() {
-            gameOverModal.style.display = 'none';
-            homeScreen.style.display = 'flex';
-        }
+        function goHome() { gameOverModal.style.display = 'none'; homeScreen.style.display = 'flex'; }
 
         function spawnBlocks() {
             for (let i = 0; i < 3; i++) {
@@ -311,15 +302,13 @@
         }
 
         function clearPreview() {
-            refreshBoardGraphics();
+            refreshBoardGraphics(false); // 드래그 취소/종료 시에는 무거운 계산 없이 기존 그래픽만 복원
         }
 
-        // [핵심 변경] BFS를 사용하여 직사각형이 아니어도 "가장 넓게 상하좌우로 뭉쳐진 영역"을 추출
-        function refreshBoardGraphics() {
-            let largestComponent = new Set();
-
-            if (isBetaMode) {
-                largestComponent = findLargestConnectedComponent();
+        // [최적화 핵심] 매 프레임 계산하는 대신 필요할 때만 계산하도록 인자(runBFS) 추가
+        function refreshBoardGraphics(runBFS = false) {
+            if (isBetaMode && runBFS) {
+                currentLargestComponent = findLargestConnectedComponent();
             }
 
             for (let r = 0; r < ROWS; r++) {
@@ -329,8 +318,7 @@
                     
                     if (boardState[r][c] !== 0) {
                         const key = `${r},${c}`;
-                        // 가장 넓게 연결된 영역에 속한 경우만 사진 조각화 출력
-                        if (isBetaMode && largestComponent.has(key)) {
+                        if (isBetaMode && currentLargestComponent.has(key)) {
                             cell.style.backgroundImage = `url(${uploadedImgUrl})`;
                             cell.style.backgroundColor = 'transparent';
                         } else {
@@ -347,17 +335,14 @@
             }
         }
 
-        // 보드판의 모든 유효 블록을 대상으로 BFS 탐색하여 가장 큰 덩어리의 좌표 Set을 반환
         function findLargestConnectedComponent() {
             let visited = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
             let maxComponent = new Set();
-
             const dr = [-1, 1, 0, 0];
             const dc = [0, 0, -1, 1];
 
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
-                    // 블록이 존재하고 아직 방문하지 않은 지점 발견시 탐색 시작
                     if (boardState[r][c] !== 0 && !visited[r][c]) {
                         let currentComponent = new Set();
                         let queue = [[r, c]];
@@ -370,7 +355,6 @@
                             for (let i = 0; i < 4; i++) {
                                 const nr = currR + dr[i];
                                 const nc = currC + dc[i];
-
                                 if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
                                     if (boardState[nr][nc] !== 0 && !visited[nr][nc]) {
                                         visited[nr][nc] = true;
@@ -379,8 +363,6 @@
                                 }
                             }
                         }
-
-                        // 이전에 찾았던 덩어리보다 더 크다면 1등 갱신
                         if (currentComponent.size > maxComponent.size) {
                             maxComponent = currentComponent;
                         }
@@ -411,7 +393,7 @@
         }
 
         function updatePreview(clientX, clientY, slotIndex) {
-            refreshBoardGraphics();
+            refreshBoardGraphics(false); // 드래그 중(프리뷰)에는 BFS 연산을 끄고 기존 맵 상태 유지
             const block = rackSlots[slotIndex];
             if (!block) return;
 
@@ -487,7 +469,8 @@
             score = 0; comboCount = 0;
             currentScoreEl.textContent = '0';
             boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-            refreshBoardGraphics();
+            currentLargestComponent.clear();
+            refreshBoardGraphics(false);
             gameOverModal.style.display = 'none';
             spawnBlocks();
         }
@@ -591,7 +574,7 @@
             if (placed) {
                 if (rackSlots.every(slot => slot === null)) spawnBlocks();
                 else { renderRack(); checkGameOver(); }
-            } else { renderRack(); refreshBoardGraphics(); }
+            } else { renderRack(); refreshBoardGraphics(false); }
         }
 
         function addScore(amount) {
@@ -618,12 +601,14 @@
                     rowsToBlast.forEach(r => boardState[r].fill(0));
                     colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
 
-                    refreshBoardGraphics();
+                    // 터질 때도 한 번만 정밀 계산
+                    refreshBoardGraphics(true);
                     checkGameOver();
                 }, 150);
             } else {
                 comboCount = 0;
-                refreshBoardGraphics();
+                // [블록이 정상 배치되었을 때] 이 타이밍에만 딱 한 번 무거운 BFS 연산을 수행(true)
+                refreshBoardGraphics(true);
             }
         }
     </script>
