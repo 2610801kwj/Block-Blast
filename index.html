@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -6,16 +6,16 @@
     <title>블록 블라스터 마스터피스</title>
     <style>
         body {
-            background: #141419; color: #fff; font-family: 'Segoe UI', sans-serif;
+            background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none; touch-action: none;
-            transition: background 0.5s ease;
+            transition: background 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
         
         #homeScreen {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #141419; z-index: 6000;
+            background: #111216; z-index: 6000;
         }
         #homeScreen h1 {
             font-size: 3rem; color: #ffeb3b; margin-bottom: 40px;
@@ -31,34 +31,43 @@
 
         @keyframes pulse { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
 
-        .score-container { display: flex; gap: 40px; margin-bottom: 10px; font-size: 1.2rem; font-weight: bold; }
+        .score-container { display: flex; gap: 40px; margin-bottom: 15px; font-size: 1.2rem; font-weight: bold; }
         .score-box { text-align: center; }
         .score-val { color: #ffeb3b; font-size: 1.6rem; text-shadow: 0 0 15px rgba(255,235,59,0.4); }
 
         #board {
-            display: grid; grid-template-columns: repeat(8, 42px); grid-template-rows: repeat(8, 42px); gap: 2px;
-            background: #141419; padding: 6px; border: 4px solid #444; border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative; transition: all 0.5s ease;
+            display: grid; grid-template-columns: repeat(8, 44px); grid-template-rows: repeat(8, 44px); gap: 2px;
+            padding: 8px; border: 5px solid #333; border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6); position: relative; 
+            transition: background 0.6s, border-color 0.6s;
         }
         .cell { 
-            background: #25252e; border-radius: 4px; box-sizing: border-box; 
-            position: relative; transition: background 0.1s ease, filter 0.1s ease;
+            background: #202124; border-radius: 5px; box-sizing: border-box; 
+            position: relative; transition: background 0.15s ease, filter 0.15s ease;
         }
 
-        /* [요청 기능] 블록을 올리기 전 지워질 예정인 줄 전체가 빛나는 블러 처리 */
         .cell.glow-blast {
             filter: blur(1px) brightness(1.8);
             box-shadow: 0 0 15px currentColor, inset 0 0 8px currentColor;
             z-index: 50;
         }
 
-        .divider { width: 350px; height: 1px; background: #333; margin: 25px 0; }
-        #rack { display: flex; gap: 30px; justify-content: center; align-items: center; width: 350px; height: 100px; position: relative; }
-        .block-container { display: grid; gap: 1px; position: relative; touch-action: none; z-index: 10; cursor: grab; }
+        .divider { width: 360px; height: 1px; background: rgba(255,255,255,0.1); margin: 25px 0; }
+        #rack { display: flex; gap: 25px; justify-content: center; align-items: center; width: 360px; height: 140px; position: relative; }
+        
+        /* 랙과 드래그 시 크기 변화 없앰 (동일한 44px 그리드로 크기 유지) */
+        .block-container { 
+            display: grid; gap: 2px; position: relative; touch-action: none; z-index: 10; cursor: grab;
+        }
         .block-container:active { cursor: grabbing; }
-        .tile { border-radius: 3px; width: 26px; height: 26px; }
+        
+        /* 드래그 중 크기 축소 없음, 원본 배율 유지 */
+        .block-container.dragging {
+            transform: scale(1.0) !important; 
+        }
+        
+        .tile { border-radius: 5px; width: 44px; height: 44px; box-sizing: border-box; }
 
-        /* [복구] 파티클 폭발 이펙트 CSS */
         .particle {
             position: fixed; width: 8px; height: 8px; border-radius: 2px;
             pointer-events: none; z-index: 2000; animation: explode 0.5s ease-out forwards;
@@ -68,7 +77,6 @@
             100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
         }
 
-        /* [복구] 콤보 팝업 텍스트 효과 CSS */
         #comboText {
             position: fixed; font-size: 2.5rem; font-weight: 900; color: #fff;
             text-shadow: 0 0 15px #ff1744, 0 0 30px #ff1744; pointer-events: none;
@@ -151,17 +159,16 @@
         let rackSlots = [null, null, null];
         let comboCount = 0;
 
-        // [요청 기능] 유저가 실제 터치/클릭한 상대 좌표 오프셋 변수
         let dragOffsetX = 0;
         let dragOffsetY = 0;
 
-        // [복구] 다채로운 테마 변경 로직 복구
+        // 차이가 극명한 유니크 테마 3종 구성
         const themes = [
-            { bg: '#141419', border: '#444', cell: '#25252e' },
-            { bg: '#0b0f19', border: '#1e293b', cell: '#1e293b' },
-            { bg: '#0a1410', border: '#102a1e', cell: '#143527' }
+            { bg: '#111216', border: '#383a40', cell: '#202124' }, // 01. 오리지널 다크 크롬
+            { bg: '#060e26', border: '#00d2ff', cell: '#0b1b4f' }, // 02. 네온 우주 네이비
+            { bg: '#0d2219', border: '#a3e635', cell: '#143829' }  // 03. 비비드 네추럴 그린
         ];
-        let currentCellColor = '#25252e';
+        let currentCellColor = '#202124';
 
         function applyRandomTheme() {
             const randomTheme = themes[Math.floor(Math.random() * themes.length)];
@@ -179,7 +186,6 @@
             }
         }
 
-        // 격자판 초기 생성
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
                 const cell = document.createElement('div');
@@ -190,16 +196,24 @@
             }
         }
 
+        // [업데이트] 실제 인게임에 존재하는 14개 핵심 블록 완벽 구현 pool
         const blockPool = [
-            { shape: [[1]], color: '#9c27b0', rows: 1, cols: 1 },
-            { shape: [[1, 1], [1, 1]], color: '#00bcd4', rows: 2, cols: 2 },
-            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#4caf50', rows: 3, cols: 3 },
-            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 },
-            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 },
-            { shape: [[1, 0], [1, 0], [1, 1]], color: '#ff9800', rows: 3, cols: 2 },
-            { shape: [[1, 1, 1], [0, 1, 0]], color: '#ffeb3b', rows: 2, cols: 3 },
-            { shape: [[1, 1], [0, 1]], color: '#03a9f4', rows: 2, cols: 2 },
-            { shape: [[1, 1, 1, 1]], color: '#3f51b5', rows: 1, cols: 4 }
+            { shape: [[1]], color: '#ffeb3b', rows: 1, cols: 1 }, // 1x1 점
+            { shape: [[1, 1]], color: '#ff9800', rows: 1, cols: 2 }, // 1x2 바
+            { shape: [[1], [1]], color: '#ff9800', rows: 2, cols: 1 }, // 2x1 바
+            { shape: [[1, 1, 1]], color: '#e91e63', rows: 1, cols: 3 }, // 1x3 바
+            { shape: [[1], [1], [1]], color: '#e91e63', rows: 3, cols: 1 }, // 3x1 바
+            { shape: [[1, 1, 1, 1]], color: '#03a9f4', rows: 1, cols: 4 }, // 1x4 롱바
+            { shape: [[1], [1], [1], [1]], color: '#03a9f4', rows: 4, cols: 1 }, // 4x1 롱바
+            { shape: [[1, 1], [1, 1]], color: '#4caf50', rows: 2, cols: 2 }, // 네모 2x2
+            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#9c27b0', rows: 3, cols: 3 }, // 거대 네모 3x3
+            { shape: [[1, 0], [1, 0], [1, 1]], color: '#3f51b5', rows: 3, cols: 2 }, // 기본 L자형
+            { shape: [[1, 1, 1], [1, 0, 0]], color: '#3f51b5', rows: 2, cols: 3 }, // 누운 L자형
+            { shape: [[0, 1], [0, 1], [1, 1]], color: '#00bcd4', rows: 3, cols: 2 }, // 반대 L자형
+            { shape: [[1, 1], [0, 1], [0, 1]], color: '#00bcd4', rows: 3, cols: 2 }, // 뒤집힌 L자형
+            { shape: [[0, 1, 0], [1, 1, 1]], color: '#ec407a', rows: 2, cols: 3 }, // ㅗ 모양 (배의 키)
+            { shape: [[1, 0], [1, 1], [0, 1]], color: '#a3e635', rows: 3, cols: 2 }, // 계단형 (Z모양)
+            { shape: [[0, 1], [1, 1], [1, 0]], color: '#a3e635', rows: 3, cols: 2 }  // 반대 계단형
         ];
 
         function startGame() {
@@ -227,16 +241,20 @@
             rackSlots.forEach((block, slotIndex) => {
                 if (!block) {
                     const emptyBox = document.createElement('div');
-                    emptyBox.style.width = '80px';
+                    emptyBox.style.width = '100px';
                     rackEl.appendChild(emptyBox);
                     return;
                 }
 
                 const box = document.createElement('div');
                 box.className = 'block-container';
-                box.style.gridTemplateRows = `repeat(${block.rows}, 27px)`;
-                box.style.gridTemplateColumns = `repeat(${block.cols}, 27px)`;
+                box.style.gridTemplateRows = `repeat(${block.rows}, 44px)`;
+                box.style.gridTemplateColumns = `repeat(${block.cols}, 44px)`;
                 box.dataset.slotIndex = slotIndex;
+
+                // 미니 블록 스케일 다운 제거, 원본 비율 그대로 아담하게 배치용 줌만 적용 (드래그시 1대1 일치)
+                box.style.transform = 'scale(0.7)';
+                box.style.transformOrigin = 'center center';
 
                 for (let r = 0; r < block.rows; r++) {
                     for (let c = 0; c < block.cols; c++) {
@@ -244,6 +262,7 @@
                         tile.className = 'tile';
                         if (block.shape[r][c] === 1) {
                             tile.style.backgroundColor = block.color;
+                            tile.style.boxShadow = 'inset 0 0 6px rgba(255,255,255,0.3)';
                         } else {
                             tile.style.backgroundColor = 'transparent';
                         }
@@ -273,17 +292,31 @@
             }
         }
 
-        // [요청 기능] 블록을 놓기 전 지워질 예정인 줄 실시간 가상 보드 연산 및 네온 가이드라인 시각화
+        // [핵심 엔진 교체] 마우스/터치 정중앙 기준 좌표 계산 및 스냅 인지 로직
+        function getTargetBoardPos(clientX, clientY, block) {
+            // 마우스 직하방에 있는 셀 하나를 임시 추적
+            const hoveredEl = document.elementFromPoint(clientX, clientY);
+            if (!hoveredEl || !hoveredEl.classList.contains('cell')) return null;
+
+            // 시각적 직관성을 향상하기 위해, 블록의 정중앙 행/열 크기 절반만큼 오프셋을 역산
+            const cellRow = parseInt(hoveredEl.dataset.row);
+            const cellCol = parseInt(hoveredEl.dataset.col);
+
+            const startRow = cellRow - Math.floor((block.rows - 1) / 2);
+            const startCol = cellCol - Math.floor((block.cols - 1) / 2);
+
+            return { startRow, startCol };
+        }
+
         function updatePreview(clientX, clientY, slotIndex) {
             clearPreview();
-            
-            const target = document.elementFromPoint(clientX, clientY);
-            if (!target || !target.classList.contains('cell')) return;
-
-            const startRow = parseInt(target.dataset.row);
-            const startCol = parseInt(target.dataset.col);
             const block = rackSlots[slotIndex];
             if (!block) return;
+
+            const pos = getTargetBoardPos(clientX, clientY, block);
+            if (!pos) return;
+
+            const { startRow, startCol } = pos;
 
             if (canBlockFit(startRow, startCol, block)) {
                 let virtualBoard = boardState.map(row => [...row]);
@@ -291,10 +324,13 @@
                 for (let r = 0; r < block.rows; r++) {
                     for (let c = 0; c < block.cols; c++) {
                         if (block.shape[r][c] === 1) {
-                            const cell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
-                            cell.style.backgroundColor = block.color;
-                            cell.style.opacity = '0.5'; 
-                            virtualBoard[startRow + r][startCol + c] = block.color;
+                            const idx = (startRow + r) * COLS + (startCol + c);
+                            if (idx >= 0 && idx < boardEl.children.length) {
+                                const cell = boardEl.children[idx];
+                                cell.style.backgroundColor = block.color;
+                                cell.style.opacity = '0.5'; 
+                                virtualBoard[startRow + r][startCol + c] = block.color;
+                            }
                         }
                     }
                 }
@@ -303,21 +339,14 @@
                 let predictCols = [];
 
                 for (let r = 0; r < ROWS; r++) {
-                    if (virtualBoard[r].every(cell => cell !== 0)) {
-                        predictRows.push(r);
-                    }
+                    if (virtualBoard[r].every(cell => cell !== 0)) predictRows.push(r);
                 }
                 for (let c = 0; c < COLS; c++) {
                     let colFull = true;
                     for (let r = 0; r < ROWS; r++) {
-                        if (virtualBoard[r][c] === 0) { 
-                            colFull = false; 
-                            break; 
-                        }
+                        if (virtualBoard[r][c] === 0) { colFull = false; break; }
                     }
-                    if (colFull) {
-                        predictCols.push(c);
-                    }
+                    if (colFull) predictCols.push(c);
                 }
 
                 predictRows.forEach(r => {
@@ -338,7 +367,7 @@
         }
 
         function canBlockFit(startRow, startCol, block) {
-            if (startRow + block.rows > ROWS || startCol + block.cols > COLS) return false;
+            if (startRow < 0 || startCol < 0 || startRow + block.rows > ROWS || startCol + block.cols > COLS) return false;
             for (let r = 0; r < block.rows; r++) {
                 for (let c = 0; c < block.cols; c++) {
                     if (block.shape[r][c] === 1 && boardState[startRow + r][startCol + c] !== 0) {
@@ -373,19 +402,21 @@
             spawnBlocks();
         }
 
-        // [요청 기능] 터치한 부분 정확한 인식을 위한 오프셋 연산 모바일 드래그
+        // 모바일 터치 오프셋 연산 커스텀 (중앙 자동 포커싱 드래그)
         function handleTouchStart(e) {
             e.preventDefault(); 
             activeBlock = this; 
+            activeBlock.classList.add('dragging');
             const touch = e.touches[0];
             const rect = activeBlock.getBoundingClientRect();
             
-            dragOffsetX = touch.clientX - rect.left;
-            dragOffsetY = touch.clientY - rect.top;
+            // 축소 방지 및 드래그 오브젝트의 중앙 고정 연산
+            dragOffsetX = rect.width / 2;
+            dragOffsetY = rect.height / 2;
 
             activeBlock.style.position = 'fixed'; 
             activeBlock.style.zIndex = '1000';
-            activeBlock.style.transform = 'scale(1.1)'; 
+            activeBlock.style.transform = 'scale(1.0)'; 
             activeBlock.style.pointerEvents = 'none';
 
             moveBlock(touch.clientX, touch.clientY);
@@ -403,25 +434,27 @@
         function handleTouchEnd(e) {
             if (!activeBlock) return; 
             const touch = e.changedTouches[0];
-            const target = document.elementFromPoint(touch.clientX, touch.clientY);
             
             clearPreview(); 
+            activeBlock.classList.remove('dragging');
             activeBlock.style.transform = 'none'; 
             activeBlock.style.pointerEvents = 'auto';
-            processPlacement(target);
+            
+            processPlacement(touch.clientX, touch.clientY);
         }
 
-        // [요청 기능] 터치한 부분 정확한 마우스 드래그 오프셋 및 먹통 에러 수정 완료
+        // PC 마우스 드래그 오프셋 커스텀 (중앙 자동 포커싱 드래그)
         function handleMouseDown(e) {
             activeBlock = this;
+            activeBlock.classList.add('dragging');
             const rect = activeBlock.getBoundingClientRect();
             
-            dragOffsetX = e.clientX - rect.left;
-            dragOffsetY = e.clientY - rect.top;
+            dragOffsetX = rect.width / 2;
+            dragOffsetY = rect.height / 2;
 
             activeBlock.style.position = 'fixed'; 
             activeBlock.style.zIndex = '1000'; 
-            activeBlock.style.transform = 'scale(1.1)';
+            activeBlock.style.transform = 'scale(1.0)';
             activeBlock.style.pointerEvents = 'none';
             
             activeBlock.style.left = `${e.clientX - dragOffsetX}px`;
@@ -438,11 +471,11 @@
                 window.removeEventListener('mousemove', moveHandler); 
                 window.removeEventListener('mouseup', upHandler);
                 if (!activeBlock) return;
-                const target = document.elementFromPoint(ev.clientX, ev.clientY); 
                 clearPreview();
+                activeBlock.classList.remove('dragging');
                 activeBlock.style.transform = 'none';
                 activeBlock.style.pointerEvents = 'auto';
-                processPlacement(target); 
+                processPlacement(ev.clientX, ev.clientY); 
             };
             window.addEventListener('mousemove', moveHandler); 
             window.addEventListener('mouseup', upHandler);
@@ -454,7 +487,6 @@
             activeBlock.style.top = `${clientY - dragOffsetY}px`;
         }
 
-        // [복구] 블록 소거 시 사방으로 튀는 파티클 이펙트 로직 완전 복구
         function createExplosion(cellEl, color) {
             const rect = cellEl.getBoundingClientRect();
             for (let i = 0; i < 6; i++) {
@@ -471,26 +503,16 @@
                 particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
                 document.body.appendChild(particle); 
                 
-                setTimeout(() => {
-                    particle.remove();
-                }, 500);
+                setTimeout(() => { particle.remove(); }, 500);
             }
         }
 
-        // [복구] 연속 소거 시 문구 변화 콤보 시스템 완벽 복구
         function showComboReaction(combo) {
             let text = "GREAT!";
             let color = "#ffeb3b"; 
-            if (combo === 2) { 
-                text = "EXCELLENT!!"; 
-                color = "#00e676"; 
-            } else if (combo === 3) { 
-                text = "AMAZING!!!"; 
-                color = "#00b0ff"; 
-            } else if (combo >= 4) { 
-                text = "UNBELIEVABLE!!!!"; 
-                color = "#d500f9"; 
-            }
+            if (combo === 2) { text = "EXCELLENT!!"; color = "#00e676"; } 
+            else if (combo === 3) { text = "AMAZING!!!"; color = "#00b0ff"; } 
+            else if (combo >= 4) { text = "UNBELIEVABLE!!!!"; color = "#d500f9"; }
 
             comboTextEl.textContent = text;
             comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
@@ -499,7 +521,6 @@
             comboTextEl.className = 'combo-animate';
         }
 
-        // [복구] 올클리어 스페셜 웨이브 애니메이션 보너스 완전 복구
         async function playAllClearAnimation() {
             const colors = ['#e91e63', '#00bcd4', '#ffeb3b', '#4caf50', '#ff9800', '#9c27b0', '#03a9f4', '#3f51b5'];
             
@@ -512,13 +533,11 @@
                 }
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
-
             await new Promise(resolve => setTimeout(resolve, 150));
 
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
-                    const cell = boardEl.children[r * COLS + c];
-                    createExplosion(cell, colors[r]);
+                    createExplosion(boardEl.children[r * COLS + c], colors[r]);
                 }
             }
 
@@ -530,44 +549,45 @@
             showComboReaction(4); 
         }
 
-        function processPlacement(target) {
+        function processPlacement(clientX, clientY) {
             let placed = false;
             if (!activeBlock) return;
             const slotIndex = parseInt(activeBlock.dataset.slotIndex);
             const block = rackSlots[slotIndex];
 
-            if (target && target.classList.contains('cell') && block) {
-                const startRow = parseInt(target.dataset.row);
-                const startCol = parseInt(target.dataset.col);
+            if (block) {
+                const pos = getTargetBoardPos(clientX, clientY, block);
+                
+                if (pos) {
+                    const { startRow, startCol } = pos;
 
-                if (canBlockFit(startRow, startCol, block)) {
-                    let tileCount = 0;
-                    for (let r = 0; r < block.rows; r++) {
-                        for (let c = 0; c < block.cols; c++) {
-                            if (block.shape[r][c] === 1) {
-                                boardState[startRow + r][startCol + c] = block.color;
-                                const targetCell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
-                                targetCell.style.backgroundColor = block.color;
-                                tileCount++;
+                    if (canBlockFit(startRow, startCol, block)) {
+                        let tileCount = 0;
+                        for (let r = 0; r < block.rows; r++) {
+                            for (let c = 0; c < block.cols; c++) {
+                                if (block.shape[r][c] === 1) {
+                                    boardState[startRow + r][startCol + c] = block.color;
+                                    const targetCell = boardEl.children[(startRow + r) * COLS + (startCol + c)];
+                                    targetCell.style.backgroundColor = block.color;
+                                    tileCount++;
+                                }
                             }
                         }
+                        
+                        addScore(tileCount * 10);
+                        checkAndBlast();
+                        
+                        rackSlots[slotIndex] = null;
+                        placed = true;
                     }
-                    
-                    addScore(tileCount * 10);
-                    checkAndBlast();
-                    
-                    rackSlots[slotIndex] = null;
-                    placed = true;
                 }
             }
 
-            if (activeBlock) {
-                activeBlock.style.position = 'relative'; 
-                activeBlock.style.left = '0px'; 
-                activeBlock.style.top = '0px'; 
-                activeBlock.style.zIndex = '10'; 
-                activeBlock = null;
-            }
+            activeBlock.style.position = 'relative'; 
+            activeBlock.style.left = '0px'; 
+            activeBlock.style.top = '0px'; 
+            activeBlock.style.zIndex = '10'; 
+            activeBlock = null;
 
             if (placed) {
                 if (rackSlots.every(slot => slot === null)) {
@@ -595,21 +615,14 @@
             let colsToBlast = [];
 
             for (let r = 0; r < ROWS; r++) {
-                if (boardState[r].every(cell => cell !== 0)) {
-                    rowsToBlast.push(r);
-                }
+                if (boardState[r].every(cell => cell !== 0)) rowsToBlast.push(r);
             }
             for (let c = 0; c < COLS; c++) {
                 let colFull = true;
                 for (let r = 0; r < ROWS; r++) {
-                    if (boardState[r][c] === 0) { 
-                        colFull = false; 
-                        break; 
-                    }
+                    if (boardState[r][c] === 0) { colFull = false; break; }
                 }
-                if (colFull) {
-                    colsToBlast.push(c);
-                }
+                if (colFull) colsToBlast.push(c);
             }
 
             const linesBlasted = rowsToBlast.length + colsToBlast.length;
@@ -668,15 +681,10 @@
                     let isAllClear = true;
                     for (let r = 0; r < ROWS; r++) {
                         for (let c = 0; c < COLS; c++) {
-                            if (boardState[r][c] !== 0) { 
-                                isAllClear = false; 
-                                break; 
-                            }
+                            if (boardState[r][c] !== 0) { isAllClear = false; break; }
                         }
                     }
-                    if (isAllClear) {
-                        playAllClearAnimation(); 
-                    }
+                    if (isAllClear) playAllClearAnimation(); 
 
                 }, 200);
 
