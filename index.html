@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 올 클리어 테마 체인지</title>
+    <title>블록 블라스터 - 3x3 확률 조정판</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
@@ -56,12 +56,65 @@
             transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
+        /* 기본 셀 (빈칸) 스타일 */
         .cell { 
-            background: #202124; border-radius: 6px; box-sizing: border-box; 
+            border-radius: 6px; box-sizing: border-box; 
             position: relative; overflow: hidden;
             transform: translate3d(0,0,0);
-            transition: background 0.3s ease;
+            transition: background 0.3s ease, box-shadow 0.2s ease, border 0.2s ease, transform 0.2s;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.8);
         }
+
+        /* -------------------------------------------
+           테마별 스킨 (질감 및 형태)
+        ------------------------------------------- */
+        /* 1. Classic (일반 블록) */
+        body.theme-classic .cell.filled, body.theme-classic .tile.filled {
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.4), inset 0 -2px 5px rgba(0,0,0,0.3);
+            border: 1px solid rgba(0,0,0,0.5);
+            border-radius: 6px;
+            background-image: none;
+            transform: scale(1);
+        }
+
+        /* 2. Jewel (보석 컷팅 블록) */
+        body.theme-jewel .cell.filled, body.theme-jewel .tile.filled {
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.7), inset 2px 2px 6px rgba(255,255,255,0.8), inset -2px -2px 6px rgba(0,0,0,0.6);
+            background-image: 
+                linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.4) 100%),
+                linear-gradient(45deg, rgba(0,0,0,0.3) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0.6) 100%);
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.3);
+            transform: scale(0.96);
+        }
+
+        /* 3. Cookie (초코칩 쿠키 블록) */
+        body.theme-cookie .cell.filled, body.theme-cookie .tile.filled {
+            border-radius: 50%;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.4), inset -2px -2px 5px rgba(0,0,0,0.5), inset 2px 2px 4px rgba(255,255,255,0.3);
+            background-image: 
+                radial-gradient(circle at 30% 30%, rgba(60,30,10,0.8) 15%, transparent 16%),
+                radial-gradient(circle at 70% 65%, rgba(60,30,10,0.8) 15%, transparent 16%),
+                radial-gradient(circle at 45% 80%, rgba(60,30,10,0.8) 12%, transparent 13%);
+            border: none;
+            transform: scale(0.92);
+        }
+
+        /* 4. Wood (나무토막 블록) */
+        body.theme-wood .cell.filled, body.theme-wood .tile.filled {
+            border-radius: 2px;
+            box-shadow: inset 1px 1px 3px rgba(255,255,255,0.2), inset -2px -2px 4px rgba(0,0,0,0.6);
+            background-image: repeating-linear-gradient(
+                20deg,
+                rgba(0,0,0,0) 0px,
+                rgba(0,0,0,0) 4px,
+                rgba(0,0,0,0.15) 4px,
+                rgba(0,0,0,0.15) 5px
+            );
+            border: 1px solid rgba(0,0,0,0.8);
+            transform: scale(1);
+        }
+        /* ------------------------------------------- */
 
         .cell-img-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -75,8 +128,9 @@
 
         .cell.glow-blast {
             filter: blur(1px) brightness(1.8);
-            box-shadow: 0 0 15px currentColor, inset 0 0 8px currentColor;
+            box-shadow: 0 0 15px currentColor, inset 0 0 8px currentColor !important;
             z-index: 50;
+            border: none !important;
         }
 
         .divider { width: 94vw; max-width: 430px; height: 1px; background: rgba(255,255,255,0.1); margin: 15px 0; }
@@ -97,7 +151,10 @@
             gap: 3px;
         }
 
-        .tile { border-radius: 5px; width: 36px; height: 36px; box-sizing: border-box; pointer-events: none; transform: translate3d(0,0,0); }
+        /* 랙 타일 기본 설정 */
+        .tile { 
+            border-radius: 6px; width: 36px; height: 36px; box-sizing: border-box; pointer-events: none; transform: translate3d(0,0,0); 
+        }
 
         .particle {
             position: fixed; width: 8px; height: 8px; border-radius: 2px;
@@ -142,10 +199,10 @@
         .btn-home { background: #555; }
     </style>
 </head>
-<body>
+<body class="theme-classic">
 
     <div id="homeScreen">
-        <h1>🧱 BLOCK BLAST!</h1>
+        <h1>🧱 BLOCK BLAST</h1>
         <button class="main-btn" onclick="startGame(false)">PLAY GAME</button>
         <button class="main-btn beta-btn" onclick="openBetaModal()">🧪 β-test MODE</button>
     </div>
@@ -209,16 +266,14 @@
         let isBetaMode = false;
         let uploadedImgUrl = "";
         let currentLargestComponent = new Set(); 
-        let currentCellColor = '#202124';
+        let currentCellColor = '#2a2d35';
 
+        // 테마 및 스킨 클래스 설정
         const themes = [
-            { name: "Classic", bodyBg: '#111216', boardBg: '#15161a', border: '#333333', cell: '#202124' },
-            { name: "Cyberpunk", bodyBg: '#0b0c10', boardBg: '#1a1f29', border: '#66fcf1', cell: '#242e3b' },
-            { name: "Forest", bodyBg: '#0b1710', boardBg: '#162b1d', border: '#4caf50', cell: '#1e3b26' },
-            { name: "Ocean", bodyBg: '#071630', boardBg: '#0d2247', border: '#03a9f4', cell: '#163161' },
-            { name: "Sunset", bodyBg: '#2a0a18', boardBg: '#3d0f24', border: '#ff5722', cell: '#541732' },
-            { name: "Grape", bodyBg: '#180b26', boardBg: '#2b1b42', border: '#e040fb', cell: '#3c275c' },
-            { name: "Gold", bodyBg: '#261f0b', boardBg: '#3b3114', border: '#ffc107', cell: '#4a3f1b' }
+            { name: "Classic", cssClass: "theme-classic", bodyBg: '#111216', boardBg: '#1a1c23', border: '#444444', cell: '#2a2d35' },
+            { name: "Jewel", cssClass: "theme-jewel", bodyBg: '#090a0f', boardBg: '#151b2b', border: '#00ffcc', cell: '#1e2638' },
+            { name: "Cookie", cssClass: "theme-cookie", bodyBg: '#2b1d16', boardBg: '#3d2b22', border: '#8b5a2b', cell: '#2a1d17' },
+            { name: "Wood", cssClass: "theme-wood", bodyBg: '#1c1606', boardBg: '#2e250c', border: '#a0522d', cell: '#261e08' }
         ];
 
         for (let r = 0; r < ROWS; r++) {
@@ -250,7 +305,7 @@
             { shape: [[1, 1, 1, 1]], color: '#03a9f4', rows: 1, cols: 4 }, 
             { shape: [[1], [1], [1], [1]], color: '#03a9f4', rows: 4, cols: 1 }, 
             { shape: [[1, 1], [1, 1]], color: '#4caf50', rows: 2, cols: 2 }, 
-            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#9c27b0', rows: 3, cols: 3 }, 
+            { shape: [[1, 1, 1], [1, 1, 1], [1, 1, 1]], color: '#9c27b0', rows: 3, cols: 3 }, // 인덱스 8: 3x3 블록
             { shape: [[1, 0], [1, 0], [1, 1]], color: '#3f51b5', rows: 3, cols: 2 }, 
             { shape: [[1, 1, 1], [1, 0, 0]], color: '#3f51b5', rows: 2, cols: 3 }, 
             { shape: [[0, 1], [0, 1], [1, 1]], color: '#00bcd4', rows: 3, cols: 2 }, 
@@ -276,12 +331,14 @@
 
         function applyRandomTheme() {
             if (isBetaMode) {
+                document.body.className = 'theme-classic';
                 document.body.style.background = '#15161a';
                 boardEl.style.background = '#15161a';
                 boardEl.style.borderColor = '#9c27b0';
                 currentCellColor = '#222328';
             } else {
                 const randTheme = themes[Math.floor(Math.random() * themes.length)];
+                document.body.className = randTheme.cssClass; // 테마 클래스 교체 (모양/질감 변경)
                 document.body.style.background = randTheme.bodyBg;
                 boardEl.style.background = randTheme.boardBg;
                 boardEl.style.borderColor = randTheme.border;
@@ -305,7 +362,18 @@
 
         function spawnBlocks() {
             for (let i = 0; i < 3; i++) {
-                const randIndex = Math.floor(Math.random() * blockPool.length);
+                let randIndex;
+                
+                // 3x3 블록(인덱스 8) 등장 확률 조절: 약 5% 확률로만 등장
+                if (Math.random() < 0.05) {
+                    randIndex = 8;
+                } else {
+                    // 3x3 블록을 제외한 나머지 블록 중에서 랜덤 선택
+                    do {
+                        randIndex = Math.floor(Math.random() * blockPool.length);
+                    } while (randIndex === 8);
+                }
+                
                 rackSlots[i] = blockPool[randIndex];
             }
             renderRack();
@@ -335,8 +403,8 @@
                         const tile = document.createElement('div');
                         tile.className = 'tile';
                         if (block.shape[r][c] === 1) {
+                            tile.classList.add('filled');
                             tile.style.backgroundColor = block.color;
-                            tile.style.boxShadow = 'inset 0 0 5px rgba(255,255,255,0.3)';
                         } else {
                             tile.style.backgroundColor = 'transparent';
                         }
@@ -363,16 +431,18 @@
                     const imgLayer = cell.querySelector('.cell-img-layer');
                     cell.classList.remove('glow-blast');
                     
-                    if (boardState[r][c] !== 0) {
-                        const key = (r << 4) | c;
-                        if (isBetaMode && currentLargestComponent.has(key)) {
-                            cell.style.backgroundColor = 'transparent';
-                            imgLayer.style.opacity = '1';
-                        } else {
-                            imgLayer.style.opacity = '0';
-                            cell.style.backgroundColor = boardState[r][c];
-                        }
+                    const key = (r << 4) | c;
+                    
+                    if (isBetaMode && currentLargestComponent.has(key)) {
+                        cell.classList.remove('filled');
+                        cell.style.backgroundColor = 'transparent';
+                        imgLayer.style.opacity = '1';
+                    } else if (boardState[r][c] !== 0) {
+                        cell.classList.add('filled');
+                        imgLayer.style.opacity = '0';
+                        cell.style.backgroundColor = boardState[r][c];
                     } else {
+                        cell.classList.remove('filled');
                         imgLayer.style.opacity = '0';
                         cell.style.backgroundColor = currentCellColor;
                     }
@@ -457,6 +527,7 @@
                             const vc = startCol + c;
                             if (vr >= 0 && vr < ROWS && vc >= 0 && vc < COLS) {
                                 const cell = boardEl.children[vr * COLS + vc];
+                                cell.classList.add('filled'); // 미리보기도 스킨 적용
                                 cell.style.backgroundColor = block.color;
                                 cell.querySelector('.cell-img-layer').style.opacity = '0';
                                 virtualBoard[vr][vc] = block.color;
@@ -682,7 +753,6 @@
                 comboCount++; 
                 addScore((rowsToBlast.length + colsToBlast.length) * 150 * comboCount); 
                 
-                // 기존 콤보 반응 처리
                 let reactionText = "GREAT!"; let reactionColor = "#ffeb3b"; 
                 if (comboCount === 2) { reactionText = "EXCELLENT!!"; reactionColor = "#00e676"; } 
                 else if (comboCount === 3) { reactionText = "AMAZING!!!"; reactionColor = "#00b0ff"; } 
@@ -695,18 +765,15 @@
                     rowsToBlast.forEach(r => boardState[r].fill(0));
                     colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
 
-                    // 보드판이 비었는지(ALL CLEAR) 확인
                     let isBoardEmpty = boardState.every(row => row.every(cell => cell === 0));
 
                     requestAnimationFrame(() => {
                         refreshBoardGraphics(true); 
                         
                         if (isBoardEmpty) {
-                            // 올 클리어 시 전용 이펙트 및 테마 랜덤 변경!
                             showComboReaction("ALL CLEAR!", "#00ffff");
                             applyRandomTheme();
                         } else {
-                            // 일반적인 콤보 텍스트 출력
                             showComboReaction(reactionText, reactionColor);
                         }
 
