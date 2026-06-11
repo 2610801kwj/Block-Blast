@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>블록 블라스터 - 무한 플레이 먹통 버그 완전 수정판</title>
+    <title>블록 블라스터 - 올 클리어 테마 체인지</title>
     <style>
         body {
             background: #111216; color: #fff; font-family: 'Segoe UI', sans-serif;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100vh; margin: 0; user-select: none; touch-action: none;
             overflow: hidden;
+            transition: background 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         #homeScreen {
@@ -52,12 +53,14 @@
             box-sizing: border-box;
             background: #15161a;
             transform: translate3d(0,0,0);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .cell { 
             background: #202124; border-radius: 6px; box-sizing: border-box; 
             position: relative; overflow: hidden;
             transform: translate3d(0,0,0);
+            transition: background 0.3s ease;
         }
 
         .cell-img-layer {
@@ -86,7 +89,6 @@
         
         .block-container { display: grid; gap: 3px; position: relative; touch-action: none; z-index: 10; cursor: grab; transform: translate3d(0,0,0); }
         
-        /* 절대 튕기지 않는 드래그레이어 고정 스타일 */
         .drag-clone {
             position: fixed;
             z-index: 9999;
@@ -111,14 +113,14 @@
             text-shadow: 0 0 15px #ff1744, 0 0 30px #ff1744; pointer-events: none;
             z-index: 4000; opacity: 0; transform: scale(0.3) translate3d(0,0,0); text-align: center;
         }
-        .combo-animate { animation: popText 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .combo-animate { animation: popText 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 
         @keyframes popText {
             0% { opacity: 0; transform: scale(0.3) rotate(-5deg) translate3d(0,0,0); }
-            30% { opacity: 1; transform: scale(1.1) rotate(5deg) translate3d(0,0,0); }
-            50% { transform: scale(1) rotate(0deg) translate3d(0,0,0); }
+            20% { opacity: 1; transform: scale(1.2) rotate(5deg) translate3d(0,0,0); }
+            40% { transform: scale(1) rotate(0deg) translate3d(0,0,0); }
             80% { opacity: 1; transform: translateY(-30px) scale(1) translate3d(0,0,0); }
-            100% { opacity: 0; transform: translateY(-50px) scale(0.8) translate3d(0,0,0); }
+            100% { opacity: 0; transform: translateY(-60px) scale(0.8) translate3d(0,0,0); }
         }
 
         #gameOverModal {
@@ -194,7 +196,6 @@
         let score = 0;
         let bestScore = 0;
         
-        // 터치 씹힘 원천 방지용 구조 설계 개편
         let dragCloneEl = null;     
         let activeSlotIndex = -1;
         let isDragging = false;
@@ -209,6 +210,16 @@
         let uploadedImgUrl = "";
         let currentLargestComponent = new Set(); 
         let currentCellColor = '#202124';
+
+        const themes = [
+            { name: "Classic", bodyBg: '#111216', boardBg: '#15161a', border: '#333333', cell: '#202124' },
+            { name: "Cyberpunk", bodyBg: '#0b0c10', boardBg: '#1a1f29', border: '#66fcf1', cell: '#242e3b' },
+            { name: "Forest", bodyBg: '#0b1710', boardBg: '#162b1d', border: '#4caf50', cell: '#1e3b26' },
+            { name: "Ocean", bodyBg: '#071630', boardBg: '#0d2247', border: '#03a9f4', cell: '#163161' },
+            { name: "Sunset", bodyBg: '#2a0a18', boardBg: '#3d0f24', border: '#ff5722', cell: '#541732' },
+            { name: "Grape", bodyBg: '#180b26', boardBg: '#2b1b42', border: '#e040fb', cell: '#3c275c' },
+            { name: "Gold", bodyBg: '#261f0b', boardBg: '#3b3114', border: '#ffc107', cell: '#4a3f1b' }
+        ];
 
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
@@ -263,26 +274,30 @@
             reader.readAsDataURL(file);
         }
 
-        function startGame(betaMode = false) {
-            isBetaMode = betaMode;
-            currentLargestComponent.clear();
-            homeScreen.style.display = 'none';
-            uploadModal.style.display = 'none';
-            
+        function applyRandomTheme() {
             if (isBetaMode) {
                 document.body.style.background = '#15161a';
                 boardEl.style.background = '#15161a';
                 boardEl.style.borderColor = '#9c27b0';
                 currentCellColor = '#222328';
             } else {
-                document.body.style.background = '#111216';
-                boardEl.style.background = '#15161a';
-                boardEl.style.borderColor = '#333';
-                currentCellColor = '#202124';
+                const randTheme = themes[Math.floor(Math.random() * themes.length)];
+                document.body.style.background = randTheme.bodyBg;
+                boardEl.style.background = randTheme.boardBg;
+                boardEl.style.borderColor = randTheme.border;
+                currentCellColor = randTheme.cell;
+                
                 for(let i=0; i<ROWS*COLS; i++) {
                     boardEl.children[i].querySelector('.cell-img-layer').style.backgroundImage = 'none';
                 }
             }
+        }
+
+        function startGame(betaMode = false) {
+            isBetaMode = betaMode;
+            currentLargestComponent.clear();
+            homeScreen.style.display = 'none';
+            uploadModal.style.display = 'none';
             resetGame();
         }
 
@@ -500,12 +515,12 @@
             currentScoreEl.textContent = '0';
             boardState = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
             currentLargestComponent.clear();
+            applyRandomTheme(); 
             refreshBoardGraphics(false);
             gameOverModal.style.display = 'none';
             spawnBlocks();
         }
 
-        /* [버그 원천 해결] 브라우저 터치 단절을 막기 위해 원본 노드를 그대로 유지하며 투명 가상 노드로 제어 */
         function startDragHandler(sourceEl, clientX, clientY) {
             if (isDragging) return;
             isDragging = true;
@@ -513,7 +528,6 @@
             
             const rect = sourceEl.getBoundingClientRect();
             
-            // 드래그 클론 배치 기하 오프셋 계산 (축소 스케일 보정 포함)
             dragOffsetX = (clientX - rect.left) / 0.85;
             dragOffsetY = (clientY - rect.top) / 0.85;
             
@@ -524,7 +538,6 @@
             
             document.body.appendChild(dragCloneEl);
             
-            // 중요: 원본 오브젝트를 숨기지 않고 visibility 상태를 제어해 터치 포커스를 잃지 않게 만듦
             sourceEl.style.visibility = 'hidden';
             
             moveClone(clientX, clientY);
@@ -618,7 +631,6 @@
                     refreshBoardGraphics(false);
                 }
             } finally {
-                // 어떤 예외 상황에서도 상태를 완전 초기화시키는 Safe-Reset 트리거
                 if (dragCloneEl) {
                     dragCloneEl.remove();
                     dragCloneEl = null;
@@ -644,13 +656,12 @@
             }
         }
 
-        function showComboReaction(combo) {
-            let text = "GREAT!"; let color = "#ffeb3b"; 
-            if (combo === 2) { text = "EXCELLENT!!"; color = "#00e676"; } 
-            else if (combo === 3) { text = "AMAZING!!!"; color = "#00b0ff"; } 
-            else if (combo >= 4) { text = "UNBELIEVABLE!!!!"; color = "#d500f9"; }
-            comboTextEl.textContent = text; comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
-            comboTextEl.className = ''; void comboTextEl.offsetWidth; comboTextEl.className = 'combo-animate';
+        function showComboReaction(text, color) {
+            comboTextEl.textContent = text; 
+            comboTextEl.style.textShadow = `0 0 15px ${color}, 0 0 30px ${color}`;
+            comboTextEl.className = ''; 
+            void comboTextEl.offsetWidth; 
+            comboTextEl.className = 'combo-animate';
         }
 
         function addScore(amount) {
@@ -668,7 +679,14 @@
             }
 
             if (rowsToBlast.length + colsToBlast.length > 0) {
-                comboCount++; addScore((rowsToBlast.length + colsToBlast.length) * 150 * comboCount); showComboReaction(comboCount); 
+                comboCount++; 
+                addScore((rowsToBlast.length + colsToBlast.length) * 150 * comboCount); 
+                
+                // 기존 콤보 반응 처리
+                let reactionText = "GREAT!"; let reactionColor = "#ffeb3b"; 
+                if (comboCount === 2) { reactionText = "EXCELLENT!!"; reactionColor = "#00e676"; } 
+                else if (comboCount === 3) { reactionText = "AMAZING!!!"; reactionColor = "#00b0ff"; } 
+                else if (comboCount >= 4) { reactionText = "UNBELIEVABLE!!!!"; reactionColor = "#d500f9"; }
 
                 setTimeout(() => {
                     rowsToBlast.forEach(r => { for(let c=0; c<COLS; c++) createExplosion(boardEl.children[r*COLS+c], boardState[r][c]); });
@@ -677,8 +695,21 @@
                     rowsToBlast.forEach(r => boardState[r].fill(0));
                     colsToBlast.forEach(c => { for(let r=0; r<ROWS; r++) boardState[r][c] = 0; });
 
+                    // 보드판이 비었는지(ALL CLEAR) 확인
+                    let isBoardEmpty = boardState.every(row => row.every(cell => cell === 0));
+
                     requestAnimationFrame(() => {
                         refreshBoardGraphics(true); 
+                        
+                        if (isBoardEmpty) {
+                            // 올 클리어 시 전용 이펙트 및 테마 랜덤 변경!
+                            showComboReaction("ALL CLEAR!", "#00ffff");
+                            applyRandomTheme();
+                        } else {
+                            // 일반적인 콤보 텍스트 출력
+                            showComboReaction(reactionText, reactionColor);
+                        }
+
                         checkGameOver();            
                     });
                 }, 150);
